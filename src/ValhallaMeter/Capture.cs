@@ -17,6 +17,9 @@ internal static class Capture
         public Character Character = null!;
         public HitData? Hit;
         public string Kind = "damage";
+        public double PeriodicFire;
+        public double PeriodicSpirit;
+        public double PeriodicPoison;
     }
     internal sealed class WeaponContext
     {
@@ -24,11 +27,20 @@ internal static class Capture
         public string Weapon = "";
         public string Ability = "";
     }
+    internal sealed class DamageOrigin
+    {
+        public Character Target = null!;
+        public Actor Source = new Actor();
+        public string Correlation = "";
+        public string Weapon = "";
+    }
     private sealed class Tag { public string Key = ""; }
     internal static readonly Stack<HealthContext> Health = new Stack<HealthContext>();
     internal static readonly Stack<WeaponContext> Weapons = new Stack<WeaponContext>();
+    internal static readonly Stack<DamageOrigin> DamageOrigins = new Stack<DamageOrigin>();
     private static readonly ConditionalWeakTable<HitData, Tag> Tags = new ConditionalWeakTable<HitData, Tag>();
     private static readonly DamageFallbackMatcher Fallbacks = new DamageFallbackMatcher();
+    private static readonly PeriodicDamageAttributor Periodic = new PeriodicDamageAttributor();
 
     internal static Actor ActorOf(Character? c)
     {
@@ -47,6 +59,26 @@ internal static class Capture
         return target.GetZDOID() + ":" + Convert.ToBase64String(sha.ComputeHash(package.GetArray()));
     }
     internal static void TagHit(Character target, HitData hit) => Tags.GetOrCreateValue(hit).Key = Fingerprint(target, hit);
+    internal static DamageOrigin BeginDamage(Character target, HitData hit)
+    {
+        TagHit(target, hit);
+        var attacker = hit.GetAttacker();
+        string weapon = Weapons.Count > 0 && Weapons.Peek().Character == attacker ? Weapons.Peek().Weapon : "";
+        Tags.TryGetValue(hit, out var tag);
+        return new DamageOrigin { Target = target, Source = ActorOf(attacker), Correlation = tag?.Key ?? "", Weapon = weapon };
+    }
+    internal static void PeriodicApplied(Character target, string damageType, float amount, bool replace)
+    {
+        if (!target || amount <= 0 || !CombatEvent.Finite(amount)) return;
+        var origin = DamageOrigins.Count > 0 && DamageOrigins.Peek().Target == target ? DamageOrigins.Peek() : null;
+        Periodic.Apply(new PeriodicDamageApplication { Time = Plugin.Now, TargetId = ActorOf(target).Id,
+            DamageType = damageType, RawAmount = amount, Source = origin?.Source ?? new Actor(),
+            Correlation = origin?.Correlation ?? "", Weapon = origin?.Weapon ?? "" }, replace);
+    }
+    internal static void PeriodicEnded(Character target, string damageType)
+    {
+        if (target) Periodic.Clear(ActorOf(target).Id, damageType);
+    }
     internal static void Outgoing(Character target, HitData hit)
     {
         if (Weapons.Count == 0) return;
@@ -72,7 +104,7 @@ internal static class Capture
         var hit = Fallbacks.Match(Plugin.Now, point.x, point.y, point.z, amount);
         if (hit != null) plugin.Publish(hit);
     }
-    internal static void ClearFallbacks() => Fallbacks.Clear();
+    internal static void ClearFallbacks() { Fallbacks.Clear(); Periodic.Clear(); DamageOrigins.Clear(); }
     internal static void HealthChanged(Character target, float before)
     {
         if (Health.Count == 0 || !target.IsOwner()) return;
@@ -82,6 +114,7 @@ internal static class Capture
         double amount = context.Kind == "damage" ? Math.Max(0, before - after) : Math.Max(0, after - before);
         if (amount <= 0) return;
         var hit = context.Hit;
+        if (context.Kind == "damage" && hit != null && PublishPeriodic(target, context, amount)) return;
         var e = new CombatEvent { Kind = context.Kind, Target = ActorOf(target), Amount = amount,
             Source = hit != null ? ActorOf(hit.GetAttacker()) : new Actor(),
             Ability = hit != null ? (hit.m_skill != Skills.SkillType.None ? hit.m_skill.ToString() : hit.m_hitType.ToString()) : "Healing / regeneration" };
@@ -97,6 +130,41 @@ internal static class Capture
             if (total > 0) foreach (var part in parts.Where(p => p.Value > 0)) e.Types[part.Key] = amount * part.Value / total;
         }
         Plugin.Instance?.Publish(e);
+    }
+    private static bool PublishPeriodic(Character target, HealthContext context, double effectiveAmount)
+    {
+        var components = new List<(string Type, double Raw)>();
+        if (context.Hit!.m_hitType == HitData.HitType.Burning)
+        {
+            if (context.PeriodicFire > 0) components.Add(("Fire", context.PeriodicFire));
+            if (context.PeriodicSpirit > 0) components.Add(("Spirit", context.PeriodicSpirit));
+        }
+        else if (context.Hit.m_hitType == HitData.HitType.Poisoned && context.PeriodicPoison > 0)
+            components.Add(("Poison", context.PeriodicPoison));
+        if (components.Count == 0) return false;
+        double rawTotal = components.Sum(c => c.Raw);
+        var destination = ActorOf(target);
+        foreach (var component in components)
+        {
+            double componentEffective = effectiveAmount * component.Raw / rawTotal;
+            var result = Periodic.Consume(destination.Id, component.Type, component.Raw, componentEffective, Plugin.Now);
+            foreach (var share in result.Shares)
+            {
+                var e = new CombatEvent { Kind = "damage", Periodic = true, Source = share.Source, Target = destination,
+                    Amount = share.Amount, Ability = component.Type + " damage over time", Weapon = share.Weapon,
+                    Correlation = share.Correlation };
+                e.Types[component.Type] = share.Amount;
+                Plugin.Instance?.Publish(e);
+            }
+            if (result.Unattributed > 0.0001)
+            {
+                var e = new CombatEvent { Kind = "damage", Periodic = true, Target = destination, Amount = result.Unattributed,
+                    Ability = component.Type + " damage over time" };
+                e.Types[component.Type] = result.Unattributed;
+                Plugin.Instance?.Publish(e);
+            }
+        }
+        return true;
     }
 }
 
@@ -119,7 +187,59 @@ internal static class DamageTextPatch
 internal static class IncomingHitPatch
 {
     [HarmonyPrefix, HarmonyPriority(Priority.First)]
-    private static void Prefix(Character __instance, HitData hit) => Plugin.Guard(() => Capture.TagHit(__instance, hit));
+    private static void Prefix(Character __instance, HitData hit, out Capture.DamageOrigin __state)
+    {
+        var state = new Capture.DamageOrigin { Target = __instance };
+        Plugin.Guard(() => state = Capture.BeginDamage(__instance, hit));
+        __state = state;
+        Capture.DamageOrigins.Push(__state);
+    }
+    private static void Finalizer(Capture.DamageOrigin __state)
+    {
+        if (Capture.DamageOrigins.Count > 0 && ReferenceEquals(Capture.DamageOrigins.Peek(), __state)) Capture.DamageOrigins.Pop();
+        else Capture.DamageOrigins.Clear();
+    }
+}
+
+[HarmonyPatch(typeof(SE_Burning), nameof(SE_Burning.AddFireDamage))]
+internal static class FireApplicationPatch
+{
+    private static void Postfix(SE_Burning __instance, float damage, bool __result) => Plugin.Guard(() =>
+    {
+        if (__result) Capture.PeriodicApplied(__instance.m_character, "Fire", damage, false);
+    });
+}
+
+[HarmonyPatch(typeof(SE_Burning), nameof(SE_Burning.AddSpiritDamage))]
+internal static class SpiritApplicationPatch
+{
+    private static void Postfix(SE_Burning __instance, float damage, bool __result) => Plugin.Guard(() =>
+    {
+        if (__result) Capture.PeriodicApplied(__instance.m_character, "Spirit", damage, false);
+    });
+}
+
+[HarmonyPatch(typeof(SE_Poison), nameof(SE_Poison.AddDamage))]
+internal static class PoisonApplicationPatch
+{
+    private static void Prefix(float damage, float ___m_damageLeft, out bool __state) => __state = damage >= ___m_damageLeft;
+    private static void Postfix(SE_Poison __instance, float damage, bool __state) => Plugin.Guard(() =>
+    {
+        if (__state) Capture.PeriodicApplied(__instance.m_character, "Poison", damage, true);
+    });
+}
+
+[HarmonyPatch(typeof(StatusEffect), nameof(StatusEffect.OnDestroy))]
+internal static class PeriodicEndPatch
+{
+    private static void Prefix(StatusEffect __instance) => Plugin.Guard(() =>
+    {
+        if (!__instance.m_character) return;
+        int hash = __instance.NameHash();
+        if (hash == SEMan.s_statusEffectBurning) Capture.PeriodicEnded(__instance.m_character, "Fire");
+        else if (hash == SEMan.s_statusEffectSpirit) Capture.PeriodicEnded(__instance.m_character, "Spirit");
+        else if (hash == SEMan.s_statusEffectPoison) Capture.PeriodicEnded(__instance.m_character, "Poison");
+    });
 }
 
 [HarmonyPatch(typeof(Character), nameof(Character.Damage))]
@@ -134,7 +254,8 @@ internal static class ApplyDamagePatch
 {
     private static void Prefix(Character __instance, HitData hit, out Capture.HealthContext __state)
     {
-        __state = new Capture.HealthContext { Character = __instance, Hit = hit };
+        __state = new Capture.HealthContext { Character = __instance, Hit = hit,
+            PeriodicFire = hit.m_damage.m_fire, PeriodicSpirit = hit.m_damage.m_spirit, PeriodicPoison = hit.m_damage.m_poison };
         Capture.Health.Push(__state);
     }
     // Always unwind, including when another mod or the game throws. Never suppress exceptions.

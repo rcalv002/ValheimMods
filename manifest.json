@@ -1,7 +1,7 @@
 {
   "name": "ValhallaMeter",
-  "version_number": "0.1.9",
+  "version_number": "0.2.0",
   "website_url": "",
-  "description": "Experimental combat meter with group telemetry, damage breakdowns, status uptime, and offline reports.",
+  "description": "Experimental combat meter with periodic-damage attribution, group telemetry, breakdowns, and offline reports.",
   "dependencies": ["denikson-BepInExPack_Valheim-5.4.2350"]
 }

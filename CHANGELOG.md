@@ -1,3 +1,11 @@
+# 0.2.0 — periodic-damage attribution
+
+- Track fire, spirit, and poison applications on the target's network owner before Valheim discards their attacker.
+- Allocate each effective periodic health-loss tick proportionally across outstanding contributors while preserving unknown shares.
+- Carry correlation metadata into later ticks so weapon names can arrive through the cooperative relay without replacing the periodic-damage label.
+- Model poison replacement, effect removal, difficulty scaling, bounded memory, overkill, and late metadata explicitly.
+- Keep periodic fallback honest: later ticks remain unavailable when an unmodded remote peer owns the target.
+
 # 0.1.9 — selectable damage series
 
 - Make weapon/skill and damage-type rows clickable in F8 interaction mode.

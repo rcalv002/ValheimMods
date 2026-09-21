@@ -35,10 +35,12 @@ public sealed class CombatTracker
             // Metadata travels separately from game damage. It may arrive after the hit.
             if (Current != null)
                 foreach (var hit in Current.Events)
-                    if (hit.Correlation == e.Correlation && hit.Source.Id == e.Source.Id && Math.Abs(hit.Time - e.Time) <= 2) Enrich(hit, e);
+                    if (hit.Correlation == e.Correlation && hit.Source.Id == e.Source.Id &&
+                        Math.Abs(hit.Time - e.Time) <= (hit.Periodic ? 180 : 2)) Enrich(hit, e);
             return true;
         }
-        if (e.Correlation.Length > 0 && origins.TryGetValue(OriginKey(e), out var origin) && Math.Abs(e.Time - origin.Time) <= 2) Enrich(e, origin);
+        if (e.Correlation.Length > 0 && origins.TryGetValue(OriginKey(e), out var origin) &&
+            Math.Abs(e.Time - origin.Time) <= (e.Periodic ? 180 : 2)) Enrich(e, origin);
         if (e.Kind == "status")
         {
             if (statuses.Count < 128 || statuses.ContainsKey(e.Source.Id)) statuses[e.Source.Id] = e;
@@ -74,7 +76,7 @@ public sealed class CombatTracker
     private static void Enrich(CombatEvent hit, CombatEvent origin)
     {
         hit.Weapon = origin.Weapon;
-        if (origin.Ability.Length > 0) hit.Ability = origin.Ability;
+        if (!hit.Periodic && origin.Ability.Length > 0) hit.Ability = origin.Ability;
     }
 
     public void Tick(double now)

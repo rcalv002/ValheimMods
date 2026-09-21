@@ -122,6 +122,29 @@ tests.Add(("DPS histogram preserves damage across elapsed-time buckets", () => {
     var filtered=CombatTracker.DpsHistogram(fight,a.Id,"",4,4,e=>e.Time<2?e.Amount:0);
     Equal(filtered.Sum()*(CombatTracker.Duration(fight,4,"")/filtered.Length),30,"Filtered histogram changed selected damage");
 }));
+tests.Add(("Periodic damage is split across applications without inventing attribution", () => {
+    var dots=new PeriodicDamageAttributor();var target="entity:troll";
+    dots.Apply(new PeriodicDamageApplication{Time=1,TargetId=target,DamageType="Fire",RawAmount=60,Source=a,Correlation="a"},false);
+    dots.Apply(new PeriodicDamageApplication{Time=1,TargetId=target,DamageType="Fire",RawAmount=40,Source=b,Correlation="b"},false);
+    var first=dots.Consume(target,"Fire",20,10,2);
+    Equal(first.Shares.Single(s=>s.Source.Id==a.Id).Amount,6,"First fire contributor share");
+    Equal(first.Shares.Single(s=>s.Source.Id==b.Id).Amount,4,"Second fire contributor share");
+    Equal(first.Unattributed,0,"Tracked fire became unattributed");
+    var rest=dots.Consume(target,"Fire",80,40,3);
+    Equal(rest.Shares.Sum(s=>s.Amount),40,"Remaining fire damage");Check(dots.Count==0,"Consumed pool was retained");
+    dots.Apply(new PeriodicDamageApplication{Time=4,TargetId=target,DamageType="Poison",RawAmount=20,Source=a},false);
+    dots.Apply(new PeriodicDamageApplication{Time=5,TargetId=target,DamageType="Poison",RawAmount=30,Source=b},true);
+    var poison=dots.Consume(target,"Poison",10,10,6);
+    Check(poison.Shares.Count==1&&poison.Shares[0].Source.Id==b.Id,"Replacement poison retained the old attacker");
+    var missing=dots.Consume("entity:other","Fire",5,3,7);Equal(missing.Unattributed,3,"Untracked tick was guessed");
+}));
+tests.Add(("Late metadata enriches periodic damage beyond the direct-hit window", () => {
+    var tracker=new CombatTracker{IdleSeconds=30};
+    var tick=Event(15,8);tick.Periodic=true;tick.Correlation="dot:1";tick.Ability="Fire damage over time";tracker.Add(tick);
+    var metadata=Event(10,0,"metadata");metadata.Correlation="dot:1";metadata.Weapon="Fire staff";metadata.Ability="Projectile";tracker.Add(metadata);
+    var saved=tracker.Current!.Events.Single(e=>e.Periodic);Check(saved.Weapon=="Fire staff","Periodic weapon metadata missing");
+    Check(saved.Ability=="Fire damage over time","Periodic ability label was overwritten");
+}));
 tests.Add(("Previous fight archive restores the newest valid unique history", () => {
     string archiveRoot=Path.Combine(Path.GetTempPath(),"ValhallaMeterArchive-"+Guid.NewGuid().ToString("N"));
     string previous=Path.Combine(archiveRoot,"previous"),current=Path.Combine(archiveRoot,"current");
@@ -202,10 +225,10 @@ string root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../
 string game = args.FirstOrDefault() ?? @"C:\Program Files (x86)\Steam\steamapps\common\Valheim";
 tests.Add(("All Harmony targets and injected fields exist in installed game", () => {
     using var module=ModuleDefinition.ReadModule(Path.Combine(game,"valheim_Data","Managed","assembly_valheim.dll"));
-    foreach(var (type,name) in new[]{("GameCamera","UpdateMouseCapture"),("PlayerController","TakeInput"),("DamageText","RPC_DamageText"),("Character","RPC_Damage"),("Character","Damage"),("Character","ApplyDamage"),("Character","RPC_Heal"),("Character","SetHealth"),("SE_Shield","OnDamaged"),("Player","OnDeath"),("Attack","OnAttackTrigger"),("Attack","FireProjectileBurst"),("Projectile","OnHit"),("Player","UseStamina"),("Player","UseEitr")}){
+    foreach(var (type,name) in new[]{("GameCamera","UpdateMouseCapture"),("PlayerController","TakeInput"),("DamageText","RPC_DamageText"),("Character","RPC_Damage"),("Character","Damage"),("Character","ApplyDamage"),("Character","RPC_Heal"),("Character","SetHealth"),("SE_Burning","AddFireDamage"),("SE_Burning","AddSpiritDamage"),("SE_Poison","AddDamage"),("StatusEffect","OnDestroy"),("SE_Shield","OnDamaged"),("Player","OnDeath"),("Attack","OnAttackTrigger"),("Attack","FireProjectileBurst"),("Projectile","OnHit"),("Player","UseStamina"),("Player","UseEitr")}){
         var t=module.Types.Single(t=>t.Name==type);Check(t.Methods.Count(m=>m.Name==name)==1,$"Missing or ambiguous {type}.{name}");
     }
-    foreach(var (type,field) in new[]{("Attack","m_character"),("Attack","m_weapon"),("Projectile","m_owner"),("Projectile","m_weapon")})
+    foreach(var (type,field) in new[]{("Attack","m_character"),("Attack","m_weapon"),("Projectile","m_owner"),("Projectile","m_weapon"),("SE_Poison","m_damageLeft")})
         Check(module.Types.Single(t=>t.Name==type).Fields.Any(f=>f.Name==field),$"Missing {type}.{field}");
 }));
 

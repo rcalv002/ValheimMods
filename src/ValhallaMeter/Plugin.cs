@@ -10,7 +10,7 @@ using ValhallaMeter.Core;
 namespace ValhallaMeter;
 
 [DefaultExecutionOrder(-10000)]
-[BepInPlugin("local.valhallameter", "Valhalla Meter", "0.1.9")]
+[BepInPlugin("local.valhallameter", "Valhalla Meter", "0.2.0")]
 public sealed class Plugin : BaseUnityPlugin
 {
     internal static Plugin? Instance;
@@ -67,7 +67,7 @@ public sealed class Plugin : BaseUnityPlugin
         {
             harmony = new Harmony("local.valhallameter");
             harmony.PatchAll(typeof(Plugin).Assembly);
-            Logger.LogInfo("Valhalla Meter 0.1.9 loaded. F7 shows/hides; F8 enables interaction. Logs: " + logs.Directory);
+            Logger.LogInfo("Valhalla Meter 0.2.0 loaded. F7 shows/hides; F8 enables interaction. Logs: " + logs.Directory);
         }
         catch (Exception ex)
         {
@@ -161,7 +161,7 @@ public sealed class Plugin : BaseUnityPlugin
     private void OnDestroy()
     {
         Interacting = false;
-        Guard(() => { Tracker.ResetSession(); logs?.Dispose(); });
+        Guard(() => { Capture.ClearFallbacks(); Tracker.ResetSession(); logs?.Dispose(); });
         harmony?.UnpatchSelf();
         Instance = null;
     }

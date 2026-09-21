@@ -21,6 +21,7 @@ public sealed class CombatEvent
     public string Ability { get; set; } = "Unknown";
     public string Weapon { get; set; } = "";
     public string Correlation { get; set; } = "";
+    public bool Periodic { get; set; }
     public Dictionary<string, double> Types { get; set; } = new Dictionary<string, double>();
     public string[] Statuses { get; set; } = Array.Empty<string>();
 
