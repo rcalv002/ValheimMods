@@ -1,3 +1,11 @@
+# 0.2.4 — companion attribution and release integrity
+
+- Credit damage from a tamed creature to the player it is actively following, with a distinct `Companion · name` weapon row.
+- Leave stationary or ownerless tames unattributed instead of guessing from network ownership or stale names.
+- Add a deterministic regression for the 30-minute encounter boundary and validate the companion APIs against the installed game.
+- Clean stale same-version package directories and verify manifest/assembly versions during build, install, and update.
+- Syntax-check the embedded report JavaScript when Node.js is available and emit SHA-256 checksums for release contents.
+
 # 0.2.3 — fight comparison and panel controls
 
 - Add a Compare tab for current-versus-previous group damage, DPS, duration, and per-player DPS deltas.
@@ -105,4 +113,4 @@
 - Background JSONL logging and standalone HTML/JSON reports with event filtering and CSV export.
 - Deterministic core checks and installed-game patch-target validation.
 
-Runtime validation in Valheim is still required. Damage-over-time source attribution, summoned-creature ownership, exact healer/caster attribution, and compatibility with other combat mods are not yet implemented or verified.
+Runtime validation in Valheim is still required for multiplayer ownership combinations, dedicated servers, companion behaviors beyond an active follow target, and compatibility with other combat mods.

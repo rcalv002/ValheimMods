@@ -14,6 +14,8 @@ $loaderPath = Join-Path $repoPath '.deps\bepinex\BepInExPack_Valheim'
 foreach ($name in @('ValhallaMeter.dll','ValhallaMeter.Core.dll')) {
     if (!(Test-Path -LiteralPath (Join-Path $releasePath $name))) { throw 'Build the release first with scripts/build.ps1.' }
 }
+$sourceVersion = [System.Reflection.AssemblyName]::GetAssemblyName((Join-Path $releasePath 'ValhallaMeter.dll')).Version.ToString(3)
+if ($sourceVersion -ne $version) { throw "Release assembly version $sourceVersion does not match manifest $version." }
 $corePath = Join-Path $gamePath 'BepInEx\core\BepInEx.dll'
 if (!(Test-Path -LiteralPath $corePath) -and !$InstallLoader) { throw 'BepInEx is missing. Use -InstallLoader for a clean manual installation, or install BepInEx with your mod manager.' }
 $copies = [System.Collections.Generic.List[object]]::new()

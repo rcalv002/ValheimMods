@@ -78,6 +78,12 @@ tests.Add(("Event and history limits bound memory", () => {
     var t=new CombatTracker { MaxEvents=3 };for(int i=0;i<90;i++)t.Add(Event(10+i*.1));
     Check(t.History.Count==20,"History bound");Check(t.History.All(f=>f.Events.Count<=3),"Event bound");
 }));
+tests.Add(("Thirty-minute fights segment before accepting the next hit", () => {
+    var tracker=new CombatTracker{IdleSeconds=4000};tracker.Add(Event(10,10));tracker.Add(Event(1810,20));
+    Check(tracker.History.Count==1&&tracker.History[0].EndReason=="30 minute segment","Long fight was not segmented");
+    Equal(CombatTracker.Rows(tracker.History[0]).Single().Damage,10,"Previous segment damage");
+    Equal(CombatTracker.Rows(tracker.Current!).Single().Damage,20,"New segment damage");
+}));
 tests.Add(("Session reset clears status and attribution state", () => {
     var t=new CombatTracker();var s=Event(10,0,"status");s.Statuses=new[]{"Rested"};t.Add(s);t.ResetSession();t.Add(Event(10.1));
     Check(!t.Current!.Events.Any(e=>e.Kind=="status"),"Status leaked between worlds");
@@ -252,9 +258,10 @@ tests.Add(("Offline report exposes selectable chart series and hit results", () 
 }));
 tests.Add(("All Harmony targets and injected fields exist in installed game", () => {
     using var module=ModuleDefinition.ReadModule(Path.Combine(game,"valheim_Data","Managed","assembly_valheim.dll"));
-    foreach(var (type,name) in new[]{("GameCamera","UpdateMouseCapture"),("PlayerController","TakeInput"),("DamageText","RPC_DamageText"),("Character","RPC_Damage"),("Character","Damage"),("Character","ApplyDamage"),("Character","RPC_Heal"),("Character","SetHealth"),("Character","OnDeath"),("SE_Burning","AddFireDamage"),("SE_Burning","AddSpiritDamage"),("SE_Poison","AddDamage"),("StatusEffect","OnDestroy"),("SE_Shield","OnDamaged"),("Player","OnDeath"),("Attack","OnAttackTrigger"),("Attack","FireProjectileBurst"),("Projectile","OnHit"),("Player","UseStamina"),("Player","UseEitr")}){
+    foreach(var (type,name) in new[]{("GameCamera","UpdateMouseCapture"),("PlayerController","TakeInput"),("DamageText","RPC_DamageText"),("Character","RPC_Damage"),("Character","Damage"),("Character","ApplyDamage"),("Character","RPC_Heal"),("Character","SetHealth"),("Character","OnDeath"),("MonsterAI","GetFollowTarget"),("SE_Burning","AddFireDamage"),("SE_Burning","AddSpiritDamage"),("SE_Poison","AddDamage"),("StatusEffect","OnDestroy"),("SE_Shield","OnDamaged"),("Player","OnDeath"),("Attack","OnAttackTrigger"),("Attack","FireProjectileBurst"),("Projectile","OnHit"),("Player","UseStamina"),("Player","UseEitr")}){
         var t=module.Types.Single(t=>t.Name==type);Check(t.Methods.Count(m=>m.Name==name)==1,$"Missing or ambiguous {type}.{name}");
     }
+    Check(module.Types.Single(t=>t.Name=="Character").Methods.Any(m=>m.Name=="IsTamed"&&m.Parameters.Count==0),"Missing Character.IsTamed()");
     foreach(var (type,field) in new[]{("Attack","m_character"),("Attack","m_weapon"),("Projectile","m_owner"),("Projectile","m_weapon"),("SE_Poison","m_damageLeft")})
         Check(module.Types.Single(t=>t.Name==type).Fields.Any(f=>f.Name==field),$"Missing {type}.{field}");
 }));

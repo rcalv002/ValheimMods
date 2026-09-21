@@ -50,6 +50,19 @@ internal static class Capture
         if (c is Player p) return new Actor { Id = "player:" + p.GetPlayerID(), Name = Clean(p.GetPlayerName()), Player = true };
         return new Actor { Id = "entity:" + c.GetZDOID(), Name = Clean(c.GetHoverName()) };
     }
+    internal static Actor DamageSourceOf(Character? character, out string companion)
+    {
+        companion = "";
+        if (!character) return new Actor();
+        if (character is Player) return ActorOf(character);
+        if (!character.IsTamed()) return ActorOf(character);
+        var ai = character.GetComponent<MonsterAI>();
+        var follow = ai ? ai.GetFollowTarget() : null;
+        var owner = follow ? follow.GetComponent<Player>() : null;
+        if (!owner) return ActorOf(character);
+        companion = "Companion · " + Clean(character.GetHoverName());
+        return ActorOf(owner);
+    }
     internal static string Clean(string? value) => string.IsNullOrEmpty(value) ? "Unknown" :
         new string(value!.Where(c => !char.IsControl(c) && c != '<' && c != '>').Take(150).ToArray());
     internal static string Localize(string value) => Clean(Localization.instance != null ? Localization.instance.Localize(value) : value);
@@ -71,8 +84,10 @@ internal static class Capture
         TagHit(target, hit);
         var attacker = hit.GetAttacker();
         string weapon = Weapons.Count > 0 && Weapons.Peek().Character == attacker ? Weapons.Peek().Weapon : "";
+        var source = DamageSourceOf(attacker, out string companion);
+        if (weapon.Length == 0) weapon = companion;
         Tags.TryGetValue(hit, out var tag);
-        return new DamageOrigin { Target = target, Source = ActorOf(attacker), Correlation = tag?.Key ?? "", Weapon = weapon };
+        return new DamageOrigin { Target = target, Source = source, Correlation = tag?.Key ?? "", Weapon = weapon };
     }
     internal static void PeriodicApplied(Character target, string damageType, float amount, bool replace)
     {
@@ -123,8 +138,10 @@ internal static class Capture
         if (amount <= 0) return;
         var hit = context.Hit;
         if (context.Kind == "damage" && hit != null && PublishPeriodic(target, context, amount)) return;
+        string companion = "";
+        var source = hit != null ? DamageSourceOf(hit.GetAttacker(), out companion) : new Actor();
         var e = At(new CombatEvent { Kind = context.Kind, Target = ActorOf(target), Amount = amount, Result = context.Result,
-            Source = hit != null ? ActorOf(hit.GetAttacker()) : new Actor(),
+            Source = source, Weapon = companion,
             Ability = hit != null ? (hit.m_skill != Skills.SkillType.None ? hit.m_skill.ToString() : hit.m_hitType.ToString()) : "Healing / regeneration" },
             hit != null ? hit.m_point : target.transform.position);
         if (hit != null)
@@ -272,7 +289,8 @@ internal static class ApplyDamagePatch
     {
         if (__state.HealthWritten || __state.Result != "Immune" || __state.Hit == null || !__state.Character.IsOwner()) return;
         var hit = __state.Hit;
-        Plugin.Instance?.Publish(Capture.At(new CombatEvent { Kind = "damage", Source = Capture.ActorOf(hit.GetAttacker()),
+        var source = Capture.DamageSourceOf(hit.GetAttacker(), out string companion);
+        Plugin.Instance?.Publish(Capture.At(new CombatEvent { Kind = "damage", Source = source, Weapon = companion,
             Target = Capture.ActorOf(__state.Character), Amount = 0, Ability = hit.m_skill != Skills.SkillType.None ? hit.m_skill.ToString() : hit.m_hitType.ToString(),
             Result = "Immune", Correlation = Capture.CorrelationOf(hit) }, hit.m_point));
     });
@@ -308,7 +326,7 @@ internal static class ShieldPatch
     {
         if (!__instance.m_character || !__instance.m_character.IsOwner()) return;
         double absorbed = Math.Max(0, __state - hit.GetTotalDamage());
-        if (absorbed > 0) Plugin.Instance?.Publish(Capture.At(new CombatEvent { Kind = "shield", Source = Capture.ActorOf(attacker),
+        if (absorbed > 0) Plugin.Instance?.Publish(Capture.At(new CombatEvent { Kind = "shield", Source = Capture.DamageSourceOf(attacker, out _),
             Target = Capture.ActorOf(__instance.m_character), Amount = absorbed, Ability = "Shield absorption (before armor)" }, hit.m_point));
     });
 }
