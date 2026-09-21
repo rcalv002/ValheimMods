@@ -1,6 +1,6 @@
 # Valhalla Meter
 
-An experimental Valheim combat meter inspired by arcdps. This is an independent C# mod; it does not load, modify, or redistribute arcdps. Version 0.1.6 is built against the locally installed Steam build 25390630 and BepInExPack Valheim 5.4.2350.
+An experimental Valheim combat meter inspired by arcdps. This is an independent C# mod; it does not load, modify, or redistribute arcdps. Version 0.1.7 is built against the locally installed Steam build 25390630 and BepInExPack Valheim 5.4.2350.
 
 ## What is implemented
 
@@ -13,7 +13,7 @@ An experimental Valheim combat meter inspired by arcdps. This is an independent 
 - Host-relayed group telemetry and local observation fallback.
 - Personal outgoing DPS fallback when an unmodded player owns the enemy, matched against Valheim's built-in damage-number broadcasts.
 - Target-aware encounters: mixed combat starts in a combined view, and header arrows cycle through individual enemies with recalculated damage, incoming damage, duration, and weapon details.
-- Player Details with a DPS-over-time histogram (elapsed time on x, bucketed DPS on y), total/average/peak values, proportional weapon or skill bars, and a switchable damage-type view.
+- Player Details with an arcdps-style DPS-over-time line plot (elapsed time on x, bucketed DPS on y), total/average/peak values, proportional weapon or skill bars, and a switchable damage-type view.
 - Persistent Older/Newer history that restores the newest 20 validated fight snapshots across game restarts.
 - Background event logs and offline HTML reports with damage timelines, player selection, buff uptime, death recaps, searchable events, pagination, and CSV export.
 
@@ -23,7 +23,7 @@ The release ZIP contains only this mod and its core library. It contains no Valh
 
 1. Install [BepInExPack for Valheim](https://thunderstore.io/c/valheim/p/denikson/BepInExPack_Valheim/).
 2. Extract the ZIP's `BepInEx/plugins/ValhallaMeter` folder into your game folder or your active mod-manager profile's `BepInEx/plugins` folder.
-3. Start Valheim through the same loader/profile. Look for `Valhalla Meter 0.1.6 loaded` in `BepInEx/LogOutput.log`.
+3. Start Valheim through the same loader/profile. Look for `Valhalla Meter 0.1.7 loaded` in `BepInEx/LogOutput.log`.
 4. Enter a world and attack a creature. Press **F7** if the panel is hidden, then **F8** to interact. Drag the header to move the panel; use the bottom arrows or mouse wheel to page through longer lists.
 
 From this source checkout, `scripts/install.ps1 -InstallLoader` installs into a clean Windows Steam installation after `scripts/build.ps1` has generated the release. It refuses conflicting existing files, writes a receipt, and does not stop/restart the game. `-WhatIf` previews every file operation. Administrator rights may be needed for Program Files.
@@ -48,7 +48,7 @@ Reports save automatically when fights end. **Export report** also saves the dis
 
 ## Accuracy and known limits
 
-This release is an alpha, not a claim of arcdps feature parity. Live solo DPS, revised controls, and the remote-owner fallback have been exercised in game. The target selector, DPS histogram, damage breakdowns, and persistent history have passed their automated harnesses and still require broader in-game validation.
+This release is an alpha, not a claim of arcdps feature parity. Live solo DPS, revised controls, and the remote-owner fallback have been exercised in game. The target selector, DPS line plot, damage breakdowns, and persistent history have passed their automated harnesses and still require broader in-game validation.
 
 - When this client owns the target, damage observes actual health changes inside `ApplyDamage` and excludes overkill. With no modded relay and another client owning the target, personal attacks are matched to Valheim's broadcast damage numbers. Those values are rounded to one decimal place, can precede final world-difficulty scaling, and cap overkill using the last replicated target health, so fallback totals are an estimate. The panel labels this mode `personal DPS fallback`.
 - Native fire/poison/spirit ticks can discard their original attacker. Such damage remains **unattributed**; it is not silently added to the local player's DPS. Summon/pet ownership attribution is not implemented.
@@ -72,9 +72,9 @@ Requires a .NET SDK, the Valheim installation, and BepInEx libraries. No Unity e
 .\scripts\build.ps1 -ValheimPath 'D:\SteamLibrary\steamapps\common\Valheim'
 ```
 
-Build output: `dist/ValhallaMeter-0.1.6.zip`. The build references the installed game's managed assemblies without distributing them. `BepInExPath` can be overridden as an MSBuild property. Dependency downloads, private decompilation notes, and generated outputs are ignored by Git. For an existing installation, `scripts/update.ps1` backs up this mod's DLLs and replaces them atomically when Windows permits; it never stops the game. The new version takes effect on restart.
+Build output: `dist/ValhallaMeter-0.1.7.zip`. The build references the installed game's managed assemblies without distributing them. `BepInExPath` can be overridden as an MSBuild property. Dependency downloads, private decompilation notes, and generated outputs are ignored by Git. For an existing installation, `scripts/update.ps1` backs up this mod's DLLs and replaces them atomically when Windows permits; it never stops the game. The new version takes effect on restart.
 
-The automated checks cover duplicate delivery, group timing, encounter boundaries, death timing, unknown sources, healing/shield aggregation, late metadata, buff sampling gaps, malformed events, memory bounds, session reset, remote-owner damage matching, target filtering, persistent archive loading, history selection, pointer click cancellation, and actual installed-game method/field presence. A second harness compiles the production `MeterWindow` against a headless drawing/input host and exercises its actual history and target navigation, histograms, tabs, scaled hit targets, dragging, disabled interaction, and export. It emits `artifacts/overlay-preview.svg`, a layout preview, not an in-game screenshot. These checks do not substitute for runtime Harmony/Unity/network testing. Browser visual QA of the HTML report was blocked by the tool's local-file URL policy; its JavaScript was syntax-checked independently.
+The automated checks cover duplicate delivery, group timing, encounter boundaries, death timing, unknown sources, healing/shield aggregation, late metadata, buff sampling gaps, malformed events, memory bounds, session reset, remote-owner damage matching, target filtering, persistent archive loading, history selection, pointer click cancellation, and actual installed-game method/field presence. A second harness compiles the production `MeterWindow` against a headless drawing/input host and exercises its actual history and target navigation, line plots, breakdown bars, tabs, scaled hit targets, dragging, disabled interaction, and export. It emits `artifacts/overlay-preview.svg`, a layout preview, not an in-game screenshot. These checks do not substitute for runtime Harmony/Unity/network testing. Browser visual QA of the HTML report was blocked by the tool's local-file URL policy; its JavaScript was syntax-checked independently.
 
 Before calling a release stable, test in a separate character/world: melee, bows, weapon swaps in flight, resisted/blocked hits, overkill, fire/poison ticks, healing, shields, deaths, reconnects, and two players attacking the same target under both ownership arrangements. Compare both clients' final totals and verify no duplicate hits, then test on a dedicated server and with the intended mod list.
 

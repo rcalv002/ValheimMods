@@ -1,3 +1,9 @@
+# 0.1.7 — arcdps-style DPS line plot
+
+- Replace the DPS-over-time columns with a continuous teal line connecting each time bucket.
+- Preserve elapsed time on the x-axis, DPS on the y-axis, grid lines, and total/average/peak/hit summaries.
+- Keep weapon/skill and damage-type breakdown bars below the plot and respect the selected enemy target.
+
 # 0.1.6 — DPS over time histogram
 
 - Add a true per-player histogram to Details with elapsed fight time on the x-axis and bucketed DPS on the y-axis.

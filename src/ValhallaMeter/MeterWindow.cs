@@ -207,7 +207,7 @@ internal sealed class MeterWindow
         var hits = fight!.Events.Where(e => e.Kind == "damage" && e.Source.Id == selected &&
             (selectedTarget.Length == 0 || e.Target.Id == selectedTarget)).ToArray();
         double combined = hits.Sum(e => e.Amount);
-        DrawDpsHistogram(r, combined);
+        DrawDpsLinePlot(r, combined);
         Button("detail:weapons", new Rect(18, 436, 112, 23), "Weapons / skills", true, () => { detailMode = 0; page = 0; }, detailMode == 0, true);
         Button("detail:types", new Rect(136, 436, 100, 23), "Damage types", true, () => { detailMode = 1; page = 0; }, detailMode == 1, true);
         List<(string Name, double Amount)> values;
@@ -274,7 +274,7 @@ internal sealed class MeterWindow
         Text(new Rect(27, y, 305, height), name, combined ? 11 : 10, combined ? Gold : Ink, bold: combined);
         Text(new Rect(334, y, 158, height), value, combined ? 12 : 10, combined ? Ink : Accent, TextAnchor.MiddleRight, combined);
     }
-    private void DrawDpsHistogram(PlayerRow row, double combined)
+    private void DrawDpsLinePlot(PlayerRow row, double combined)
     {
         int bins = Math.Clamp((int)Math.Ceiling(duration), 1, 30);
         var values = CombatTracker.DpsHistogram(fight!, row.Actor.Id, selectedTarget, Plugin.Now, bins);
