@@ -47,7 +47,8 @@ public sealed class CombatTracker
         {
             if (statuses.Count < 128 || statuses.ContainsKey(e.Source.Id)) statuses[e.Source.Id] = e;
         }
-        bool combat = (e.Kind == "damage" || e.Kind == "shield") && e.Amount > 0 && (e.Source.Player || e.Target.Player);
+        bool combat = ((e.Kind == "damage" && (e.Amount > 0 || e.Result == "Immune")) ||
+            (e.Kind == "shield" && e.Amount > 0)) && (e.Source.Player || e.Target.Player);
         if (Current != null && combat && DistantFromCurrent(Current, e)) Finish("Distant combat");
         if (Current == null && combat)
         {

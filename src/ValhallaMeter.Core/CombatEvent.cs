@@ -20,6 +20,7 @@ public sealed class CombatEvent
     public double Amount { get; set; }
     public string Ability { get; set; } = "Unknown";
     public string Weapon { get; set; } = "";
+    public string Result { get; set; } = "";
     public string Correlation { get; set; } = "";
     public bool Periodic { get; set; }
     public bool Boss { get; set; }
@@ -35,7 +36,7 @@ public sealed class CombatEvent
         if (Id == null || Id.Length < 1 || Id.Length > 96 || !Finite(Time) || Time < 0 ||
             !Finite(Amount) || Amount < 0 || Amount > 100000000 ||
             !ValidActor(Source) || !ValidActor(Target) || Ability == null || Ability.Length > 160 ||
-            Weapon == null || Weapon.Length > 160 || Correlation == null || Correlation.Length > 128 ||
+            Weapon == null || Weapon.Length > 160 || Result == null || Result.Length > 40 || Correlation == null || Correlation.Length > 128 ||
             Types == null || Types.Count > 16 || Statuses == null || Statuses.Length > 64 ||
             (HasPosition && (!Finite(X) || !Finite(Y) || !Finite(Z) || Math.Abs(X) > 10000000 || Math.Abs(Y) > 10000000 || Math.Abs(Z) > 10000000))) return false;
         foreach (var pair in Types)

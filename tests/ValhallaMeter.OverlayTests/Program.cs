@@ -7,7 +7,7 @@ using ValhallaMeter.Core;
 
 var plugin=new Plugin();var window=new MeterWindow(plugin);
 var actor=new Actor {Id="player:1",Name="Astrid",Player=true};int serial=0;
-void Damage(double time,double amount,string title,string weapon="",string type=""){var e=new CombatEvent{Id="ui:"+(++serial),Time=time,Amount=amount,Source=actor,Target=new Actor{Id="entity:"+title,Name=title},Weapon=weapon};if(type.Length>0)e.Types[type]=amount;plugin.Tracker.Add(e);}
+void Damage(double time,double amount,string title,string weapon="",string type=""){var e=new CombatEvent{Id="ui:"+(++serial),Time=time,Amount=amount,Source=actor,Target=new Actor{Id="entity:"+title,Name=title},Weapon=weapon,Result="Normal"};if(type.Length>0)e.Types[type]=amount;plugin.Tracker.Add(e);}
 void Check(bool condition,string message){if(!condition)throw new Exception(message);}
 void Draw(){window.Refresh();GUI.Commands.Clear();window.Draw();}
 bool Has(string label)=>GUI.Commands.Any(c=>c.Text==label);
@@ -46,6 +46,7 @@ Click("Iron mace");Check(GUI.Commands.Any(c=>c.Text=="Iron mace  ·  1 HIT")&&GU
 Click("Iron mace");Check(GUI.Commands.Any(c=>c.Text=="DPS OVER TIME  ·  3 HITS"),"Active weapon row did not restore all damage");
 Click("Damage types");Check(Has("Blunt")&&Has("Pierce"),"Damage-type histogram did not render");
 Click("Pierce");Check(GUI.Commands.Any(c=>c.Text=="Pierce  ·  1 HIT")&&GUI.Commands.Any(c=>c.Text!=null&&c.Text.StartsWith("10 / 110 TOTAL")),"Damage-type row did not filter the DPS line");
+Click("Hit results");Check(Has("Normal"),"Hit-result breakdown did not render");Click("Normal");Check(GUI.Commands.Any(c=>c.Text=="Normal  ·  3 HITS"),"Hit-result row did not filter the DPS line");
 Click("Buffs");Check(Has("No status samples for this player."),"Buff tab did not switch");
 Click("Damage");plugin.Interacting=false;Click("Older");Check(Has("2 targets · ALL"),"Inactive pointer changed selection");
 plugin.Interacting=true;plugin.WindowScale.Value=1.5f;Draw();Click("Older");Check(Has("Troll"),"Scaled hit testing failed");

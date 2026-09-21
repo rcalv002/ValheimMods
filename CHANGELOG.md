@@ -1,3 +1,11 @@
+# 0.2.2 — hit results and report parity
+
+- Capture Valheim's final significant resistance result for resolved hits and periodic ticks.
+- Retain immune player attacks as zero-damage attempts so hit counts and target activity remain honest.
+- Add a selectable Hit results breakdown to the in-game Details view.
+- Upgrade offline reports with player, target, weapon, and damage-type chart filters; hover DPS values; clickable breakdown rows; result summaries; enemy kill recaps; and result-aware event/CSV columns.
+- Keep armor prevention, block prevention, parries, and dodges explicitly outside the recorded result instead of estimating them.
+
 # 0.2.1 — encounter boundaries
 
 - Attach bounded world-position telemetry to resolved damage, periodic ticks, shields, fallback hits, and deaths.

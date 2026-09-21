@@ -62,7 +62,7 @@ public sealed class DamageFallbackMatcher
         return new CombatEvent
         {
             Kind = "damage", Time = time, Amount = amount, Source = match.Source, Target = match.Target,
-            Ability = match.Ability, Weapon = match.Weapon, Correlation = match.Correlation,
+            Ability = match.Ability, Weapon = match.Weapon, Result = "Observed", Correlation = match.Correlation,
             HasPosition = true, X = x, Y = y, Z = z
         };
     }

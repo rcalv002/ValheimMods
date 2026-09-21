@@ -44,6 +44,11 @@ tests.Add(("Unattributed damage is never assigned to the local player", () => {
     Equal(CombatTracker.Rows(t.Current!)[0].Damage, 100, "Player damage");
     Equal(t.Current!.Events.Where(e=>e.Source.Id=="unknown").Sum(e=>e.Amount), 50, "Unknown bucket");
 }));
+tests.Add(("Immune player attacks are retained as zero-damage attempts", () => {
+    var tracker=new CombatTracker();var immune=Event(10,0);immune.Result="Immune";tracker.Add(immune);
+    Check(tracker.Current!=null,"Immune attempt did not start combat");var row=CombatTracker.Rows(tracker.Current!).Single();
+    Equal(row.Damage,0,"Immune attempt added damage");Check(row.Hits==1,"Immune attempt was not counted as a hit");
+}));
 tests.Add(("Healing and shields are credited to recipients", () => {
     var t = new CombatTracker(); t.Add(Event(10)); t.Add(Event(11, 25, "heal", new Actor(), a)); t.Add(Event(12, 70, "shield", enemy, a));
     var r = CombatTracker.Rows(t.Current!).Single(r=>r.Actor.Id==a.Id); Equal(r.HealingReceived,25,"Healing"); Equal(r.Absorbed,70,"Shield"); Equal(r.Damage,10,"Damage unchanged");
@@ -239,6 +244,12 @@ tests.Add(("Pointer clicks cancel on drag-away, disabled controls and interactio
 
 string root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../"));
 string game = args.FirstOrDefault() ?? @"C:\Program Files (x86)\Steam\steamapps\common\Valheim";
+tests.Add(("Offline report exposes selectable chart series and hit results", () => {
+    string template=File.ReadAllText(Path.Combine(root,"src","ValhallaMeter","report.html"));
+    foreach(string marker in new[]{"id=\"chartPlayer\"","id=\"chartTarget\"","id=\"chartSeries\"","id=\"charttip\"","id=\"results\"","'Result'"})
+        Check(template.Contains(marker),"Missing report control: "+marker);
+    Check(template.Contains("textContent")&&!template.Contains("innerHTML"),"Report bypasses safe text rendering");
+}));
 tests.Add(("All Harmony targets and injected fields exist in installed game", () => {
     using var module=ModuleDefinition.ReadModule(Path.Combine(game,"valheim_Data","Managed","assembly_valheim.dll"));
     foreach(var (type,name) in new[]{("GameCamera","UpdateMouseCapture"),("PlayerController","TakeInput"),("DamageText","RPC_DamageText"),("Character","RPC_Damage"),("Character","Damage"),("Character","ApplyDamage"),("Character","RPC_Heal"),("Character","SetHealth"),("Character","OnDeath"),("SE_Burning","AddFireDamage"),("SE_Burning","AddSpiritDamage"),("SE_Poison","AddDamage"),("StatusEffect","OnDestroy"),("SE_Shield","OnDamaged"),("Player","OnDeath"),("Attack","OnAttackTrigger"),("Attack","FireProjectileBurst"),("Projectile","OnHit"),("Player","UseStamina"),("Player","UseEitr")}){

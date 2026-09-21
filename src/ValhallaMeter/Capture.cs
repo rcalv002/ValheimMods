@@ -20,6 +20,8 @@ internal static class Capture
         public double PeriodicFire;
         public double PeriodicSpirit;
         public double PeriodicPoison;
+        public string Result = "";
+        public bool HealthWritten;
     }
     internal sealed class WeaponContext
     {
@@ -63,6 +65,7 @@ internal static class Capture
         return target.GetZDOID() + ":" + Convert.ToBase64String(sha.ComputeHash(package.GetArray()));
     }
     internal static void TagHit(Character target, HitData hit) => Tags.GetOrCreateValue(hit).Key = Fingerprint(target, hit);
+    internal static string CorrelationOf(HitData hit) => Tags.TryGetValue(hit, out var tag) ? tag.Key : "";
     internal static DamageOrigin BeginDamage(Character target, HitData hit)
     {
         TagHit(target, hit);
@@ -114,12 +117,13 @@ internal static class Capture
         if (Health.Count == 0 || !target.IsOwner()) return;
         var context = Health.Peek();
         if (context.Character != target) return;
+        context.HealthWritten = true;
         double after = Math.Max(0, target.GetHealth());
         double amount = context.Kind == "damage" ? Math.Max(0, before - after) : Math.Max(0, after - before);
         if (amount <= 0) return;
         var hit = context.Hit;
         if (context.Kind == "damage" && hit != null && PublishPeriodic(target, context, amount)) return;
-        var e = At(new CombatEvent { Kind = context.Kind, Target = ActorOf(target), Amount = amount,
+        var e = At(new CombatEvent { Kind = context.Kind, Target = ActorOf(target), Amount = amount, Result = context.Result,
             Source = hit != null ? ActorOf(hit.GetAttacker()) : new Actor(),
             Ability = hit != null ? (hit.m_skill != Skills.SkillType.None ? hit.m_skill.ToString() : hit.m_hitType.ToString()) : "Healing / regeneration" },
             hit != null ? hit.m_point : target.transform.position);
@@ -157,14 +161,14 @@ internal static class Capture
             {
                 var e = At(new CombatEvent { Kind = "damage", Periodic = true, Source = share.Source, Target = destination,
                     Amount = share.Amount, Ability = component.Type + " damage over time", Weapon = share.Weapon,
-                    Correlation = share.Correlation }, context.Hit.m_point);
+                    Result = context.Result, Correlation = share.Correlation }, context.Hit.m_point);
                 e.Types[component.Type] = share.Amount;
                 Plugin.Instance?.Publish(e);
             }
             if (result.Unattributed > 0.0001)
             {
                 var e = At(new CombatEvent { Kind = "damage", Periodic = true, Target = destination, Amount = result.Unattributed,
-                    Ability = component.Type + " damage over time" }, context.Hit.m_point);
+                    Ability = component.Type + " damage over time", Result = context.Result }, context.Hit.m_point);
                 e.Types[component.Type] = result.Unattributed;
                 Plugin.Instance?.Publish(e);
             }
@@ -257,12 +261,21 @@ internal static class OutgoingHitPatch
 [HarmonyPatch(typeof(Character), nameof(Character.ApplyDamage))]
 internal static class ApplyDamagePatch
 {
-    private static void Prefix(Character __instance, HitData hit, out Capture.HealthContext __state)
+    private static void Prefix(Character __instance, HitData hit, HitData.DamageModifier mod, out Capture.HealthContext __state)
     {
         __state = new Capture.HealthContext { Character = __instance, Hit = hit,
-            PeriodicFire = hit.m_damage.m_fire, PeriodicSpirit = hit.m_damage.m_spirit, PeriodicPoison = hit.m_damage.m_poison };
+            PeriodicFire = hit.m_damage.m_fire, PeriodicSpirit = hit.m_damage.m_spirit, PeriodicPoison = hit.m_damage.m_poison,
+            Result = mod.ToString() };
         Capture.Health.Push(__state);
     }
+    private static void Postfix(Capture.HealthContext __state) => Plugin.Guard(() =>
+    {
+        if (__state.HealthWritten || __state.Result != "Immune" || __state.Hit == null || !__state.Character.IsOwner()) return;
+        var hit = __state.Hit;
+        Plugin.Instance?.Publish(Capture.At(new CombatEvent { Kind = "damage", Source = Capture.ActorOf(hit.GetAttacker()),
+            Target = Capture.ActorOf(__state.Character), Amount = 0, Ability = hit.m_skill != Skills.SkillType.None ? hit.m_skill.ToString() : hit.m_hitType.ToString(),
+            Result = "Immune", Correlation = Capture.CorrelationOf(hit) }, hit.m_point));
+    });
     // Always unwind, including when another mod or the game throws. Never suppress exceptions.
     private static void Finalizer() { if (Capture.Health.Count > 0) Capture.Health.Pop(); }
 }

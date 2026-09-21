@@ -213,34 +213,42 @@ internal sealed class MeterWindow
         double combined = hits.Sum(e => e.Amount);
         Button("detail:weapons", new Rect(18, 436, 112, 23), "Weapons / skills", true, () => { detailMode = 0; selectedBreakdown = ""; page = 0; }, detailMode == 0, true);
         Button("detail:types", new Rect(136, 436, 100, 23), "Damage types", true, () => { detailMode = 1; selectedBreakdown = ""; page = 0; }, detailMode == 1, true);
-        List<(string Name, double Amount)> values;
+        Button("detail:results", new Rect(242, 436, 96, 23), "Hit results", true, () => { detailMode = 2; selectedBreakdown = ""; page = 0; }, detailMode == 2, true);
+        List<(string Key, string Label, double Amount, int Hits)> values;
         if (detailMode == 0)
             values = hits.GroupBy(WeaponCategory)
-                .Select(g => (g.Key, g.Sum(e => e.Amount))).OrderByDescending(v => v.Item2).ToList();
-        else
+                .Select(g => (g.Key, g.Key, g.Sum(e => e.Amount), g.Count())).OrderByDescending(v => v.Item3).ToList();
+        else if (detailMode == 1)
         {
-            values = hits.SelectMany(e => e.Types).GroupBy(p => p.Key)
-                .Select(g => (g.Key, g.Sum(p => p.Value))).OrderByDescending(v => v.Item2).ToList();
+            values = hits.SelectMany(e => e.Types.Select(p => (p.Key, p.Value, e.Id))).GroupBy(p => p.Key)
+                .Select(g => (g.Key, g.Key, g.Sum(p => p.Value), g.Select(p => p.Id).Distinct().Count())).OrderByDescending(v => v.Item3).ToList();
             double unresolved = Math.Max(0, combined - values.Sum(v => v.Amount));
-            if (unresolved > 0.05) values.Add(("Unresolved / fallback", unresolved));
+            int unresolvedHits = hits.Count(e => DamageTypeAmount(e, "Unresolved / fallback") > 0.05);
+            if (unresolved > 0.05) values.Add(("Unresolved / fallback", "Unresolved / fallback", unresolved, unresolvedHits));
         }
-        if (selectedBreakdown.Length > 0 && !values.Any(v => v.Name == selectedBreakdown)) selectedBreakdown = "";
+        else values = hits.GroupBy(ResultCategory).Select(g => (g.Key, g.Key, g.Sum(e => e.Amount), g.Count()))
+            .OrderByDescending(v => v.Item3).ThenByDescending(v => v.Item4).ToList();
+        if (selectedBreakdown.Length > 0 && !values.Any(v => v.Key == selectedBreakdown)) selectedBreakdown = "";
         Func<CombatEvent, double>? selector = null;
+        Func<CombatEvent, bool>? matcher = null;
         if (selectedBreakdown.Length > 0)
-            selector = detailMode == 0
-                ? e => WeaponCategory(e) == selectedBreakdown ? e.Amount : 0
-                : e => DamageTypeAmount(e, selectedBreakdown);
+        {
+            matcher = detailMode == 0 ? e => WeaponCategory(e) == selectedBreakdown : detailMode == 1 ?
+                e => DamageTypeAmount(e, selectedBreakdown) > 0 : e => ResultCategory(e) == selectedBreakdown;
+            selector = detailMode == 1 ? e => DamageTypeAmount(e, selectedBreakdown) : e => matcher(e) ? e.Amount : 0;
+        }
         double selectedTotal = selector == null ? combined : hits.Sum(selector);
-        int selectedHits = selector == null ? hits.Length : hits.Count(e => selector(e) > 0);
+        int selectedHits = matcher == null ? hits.Length : hits.Count(matcher);
         DrawDpsLinePlot(r, combined, selectedTotal, selectedHits, selector);
         Pages(values.Count, 3); int i = 0;
         foreach (var value in values.Skip(page * 3).Take(3))
         {
             double share = combined > 0 ? value.Amount / combined * 100 : 0;
-            string name = value.Name;
-            BreakdownBar(466 + i++ * 25, 22, name, value.Amount, Math.Max(1, combined),
-                value.Amount.ToString("N0") + "  " + share.ToString("0.0") + "%", name == selectedBreakdown,
-                () => { selectedBreakdown = selectedBreakdown == name ? "" : name; });
+            string key = value.Key;
+            string summary = detailMode == 2 ? value.Hits + (value.Hits == 1 ? " hit  ·  " : " hits  ·  ") + value.Amount.ToString("N0") :
+                value.Amount.ToString("N0") + "  " + share.ToString("0.0") + "%";
+            BreakdownBar(466 + i++ * 25, 22, value.Label, value.Amount, Math.Max(1, combined), summary, key == selectedBreakdown,
+                () => { selectedBreakdown = selectedBreakdown == key ? "" : key; });
         }
         if (values.Count == 0) Text(new Rect(22, 474, 480, 30), detailMode == 0 ? "No weapon or skill damage recorded." : "No damage-type data recorded.", 11, Muted);
     }
@@ -285,6 +293,7 @@ internal sealed class MeterWindow
         if (type == "Unresolved / fallback") return Math.Max(0, e.Amount - e.Types.Values.Sum());
         return e.Types.TryGetValue(type, out double amount) ? amount : 0;
     }
+    private static string ResultCategory(CombatEvent e) => e.Result.Length > 0 ? e.Result : "Unresolved";
     private void BreakdownBar(float y, float height, string name, double amount, double maximum, string value, bool active, Action action)
     {
         var area = new Rect(18, y, 484, height);
