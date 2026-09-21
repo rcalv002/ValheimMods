@@ -25,6 +25,13 @@ void ClickTargetNext()
     ZInput.Down=true;ZInput.Held=true;window.HandleInput();
     ZInput.Down=false;ZInput.Held=false;ZInput.Up=true;window.HandleInput();ZInput.Up=false;Draw();
 }
+void HoverPlot(float fraction)
+{
+    var header=GUI.Commands.Single(c=>c.Text=="VALHALLA").Area;
+    float originX=header.x-18,originY=header.y-13;
+    float x=originX+54+448*Math.Clamp(fraction,0,1),y=originY+306+52;
+    ZInput.pointerPosition=new Vector3(x,Screen.height-y);Draw();
+}
 try
 {
 Damage(10,30,"Boar");plugin.Tracker.Finish("test");Damage(20,60,"Troll");plugin.Tracker.Finish("test");Draw();
@@ -34,6 +41,7 @@ Damage(30,90,"Greydwarf","Iron mace","Blunt");Damage(32,10,"Neck","Huntsman bow"
 ClickTargetNext();Check(Has("Greydwarf"),"First target filter failed");ClickTargetNext();Check(Has("Neck"),"Second target filter failed");
 Click("Older");Damage(34,10,"Greydwarf");plugin.Tracker.Finish("test");Draw();Check(Has("Troll"),"History drifted");
 Click("Live");Click("Details");Check(Has("Astrid")&&GUI.Commands.Any(c=>c.Text!=null&&c.Text.StartsWith("DPS OVER TIME"))&&Has("Iron mace")&&Has("Huntsman bow"),"Details histogram did not render time and weapon damage");
+HoverPlot(.7f);Check(GUI.Commands.Any(c=>c.Text!=null&&c.Text.Contains("s  ·  ")&&c.Text.EndsWith(" DPS")),"DPS plot hover cursor did not expose its time bucket");
 Click("Damage types");Check(Has("Blunt")&&Has("Pierce"),"Damage-type histogram did not render");
 Click("Buffs");Check(Has("No status samples for this player."),"Buff tab did not switch");
 Click("Damage");plugin.Interacting=false;Click("Older");Check(Has("2 targets · ALL"),"Inactive pointer changed selection");
@@ -49,11 +57,12 @@ ZInput.Held=false;ZInput.Up=true;window.HandleInput();ZInput.Up=false;Draw();
 Check(plugin.WindowX.Value==oldX+50&&plugin.WindowY.Value==oldY+30,"Dragging did not save window position");
 Check(Has("F8  ·  RETURN TO GAME"),"Wrong interaction shortcut label");
 Click("Live");Click("Details");Click("Weapons / skills");
+HoverPlot(.7f);
 Check(GUI.Commands.Any(c=>c.Text!=null&&c.Text.StartsWith("DPS OVER TIME"))&&GUI.Commands.Any(c=>Math.Abs(c.Rotation)>.1)&&Has("0.0s")&&Has("Iron mace")&&Has("Huntsman bow"),"Final line-plot preview is incomplete");
 plugin.WindowX.Value=30;plugin.WindowY.Value=30;
 string root=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"../../../../../"));Directory.CreateDirectory(Path.Combine(root,"artifacts"));
 File.WriteAllText(Path.Combine(root,"artifacts","overlay-preview.svg"),GUI.Svg());
-System.Console.WriteLine("PASS Production overlay: Older/Newer/Live, target filters, DPS line plot, damage breakdowns, stable history, tabs, scaled hit targets, export and dragging");
+System.Console.WriteLine("PASS Production overlay: Older/Newer/Live, target filters, interactive DPS line plot, damage breakdowns, stable history, tabs, scaled hit targets, export and dragging");
 System.Console.WriteLine("Wrote artifacts/overlay-preview.svg (headless layout preview, not an in-game screenshot).");
 }
 catch(Exception ex)

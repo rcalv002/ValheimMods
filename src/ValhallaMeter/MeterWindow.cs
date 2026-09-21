@@ -294,6 +294,20 @@ internal sealed class MeterWindow
                 for (int i = 1; i < bins; i++)
                     PlotSegment(plot.x + 2 + (i - 1) * step, Y(values[i - 1]), plot.x + 2 + i * step, Y(values[i]));
             }
+            var pointer = Pointer - rect.position;
+            if (plugin.Interacting && plot.Contains(pointer))
+            {
+                int bucket = bins == 1 ? 0 : Math.Clamp((int)Math.Round((pointer.x - plot.x - 2) * (bins - 1) / (plot.width - 4)), 0, bins - 1);
+                float x = bins == 1 ? Mathf.Clamp(pointer.x, plot.x + 2, plot.x + plot.width - 2) : plot.x + 2 + bucket * (plot.width - 4) / (bins - 1);
+                float y = Y(values[bucket]);
+                Box(new Rect(x, plot.y, 1, plot.height), new Color32(110, 213, 211, 105));
+                Box(new Rect(x - 3, y - 3, 7, 7), Accent);
+                double time = bins == 1 ? duration / 2 : duration * bucket / (bins - 1);
+                string label = $"{time:0.0}s  ·  {values[bucket]:0.0} DPS";
+                float labelX = Mathf.Clamp(x - 55, plot.x + 4, plot.x + plot.width - 114);
+                Box(new Rect(labelX, plot.y + 5, 110, 19), Background);
+                Text(new Rect(labelX + 5, plot.y + 5, 100, 19), label, 9, Ink, TextAnchor.MiddleCenter, true);
+            }
         }
         Text(new Rect(18, 302, 31, 18), peak.ToString("N0"), 9, Muted, TextAnchor.MiddleRight);
         Text(new Rect(18, 394, 31, 18), "0", 9, Muted, TextAnchor.MiddleRight);

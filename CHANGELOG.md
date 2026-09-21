@@ -1,3 +1,9 @@
+# 0.1.8 — interactive DPS cursor
+
+- Show the nearest line-plot bucket's elapsed time and exact DPS while hovering the graph in F8 interaction mode.
+- Add a vertical guide and point marker so spikes can be matched to their time bucket.
+- Keep the cursor bounded inside the plot at the first and last samples.
+
 # 0.1.7 — arcdps-style DPS line plot
 
 - Replace the DPS-over-time columns with a continuous teal line connecting each time bucket.
