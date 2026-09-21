@@ -27,7 +27,7 @@ internal sealed class MeterWindow
     private bool dragging;
     private Vector2 dragOffset;
     public string Notice = "";
-    private static readonly string[] Tabs = { "Damage", "Taken", "Healing", "Shields", "Details", "Buffs", "Deaths" };
+    private static readonly string[] Tabs = { "Damage", "Taken", "Healing", "Shields", "Details", "Buffs", "Deaths", "Compare" };
     private static readonly Color Background = new Color32(15, 21, 28, 246);
     private static readonly Color Surface = new Color32(25, 34, 43, 255);
     private static readonly Color Border = new Color32(48, 63, 74, 255);
@@ -71,7 +71,8 @@ internal sealed class MeterWindow
         Vector2 pointer = Pointer;
         Vector2 local = pointer - rect.position;
         bool down = active && ZInput.GetMouseButtonDown(0), up = active && ZInput.GetMouseButtonUp(0);
-        if (down && new Rect(0, 0, Width, 43).Contains(local)) { dragging = true; dragOffset = local; }
+        if (down && !plugin.WindowLocked.Value && new Rect(0, 0, Width, 43).Contains(local) &&
+            !new Rect(410, 12, 92, 24).Contains(local)) { dragging = true; dragOffset = local; }
         if (dragging && active && ZInput.GetMouseButton(0)) { rect.position = pointer - dragOffset; Clamp(); }
         if (dragging && (!active || up)) { dragging = false; SavePosition(); }
         var target = !dragging ? targets.LastOrDefault(t => t.Area.Contains(local)) : null;
@@ -108,10 +109,12 @@ internal sealed class MeterWindow
     private void Contents()
     {
         Box(new Rect(0, 0, Width, Height), Border);
-        Box(new Rect(1, 1, Width - 2, Height - 2), Background);
+        Box(new Rect(1, 1, Width - 2, Height - 2), new Color(Background.r, Background.g, Background.b, plugin.WindowOpacity.Value));
         Box(new Rect(1, 1, Width - 2, 3), Accent);
         Text(new Rect(18, 13, 205, 24), "VALHALLA", 17, Ink, bold: true);
-        Text(new Rect(290, 13, 212, 22), plugin.Interacting ? "F8  ·  RETURN TO GAME" : "F8  ·  INTERACT     F7  ·  HIDE", 10, plugin.Interacting ? Accent : Muted, TextAnchor.MiddleRight);
+        Text(new Rect(245, 13, plugin.Interacting ? 157 : 257, 22), plugin.Interacting ? "F8  ·  RETURN TO GAME" : "F8  ·  INTERACT     F7  ·  HIDE", 10, plugin.Interacting ? Accent : Muted, TextAnchor.MiddleRight);
+        if (plugin.Interacting) Button("window:lock", new Rect(410, 12, 92, 24), plugin.WindowLocked.Value ? "Unlock panel" : "Lock panel", true,
+            () => plugin.WindowLocked.Value = !plugin.WindowLocked.Value, plugin.WindowLocked.Value);
         Line(44);
         Text(new Rect(18, 50, 350, 18), plugin.Coverage, 10, Muted);
         string mode = !selection.IsLive ? "HISTORY" : plugin.Tracker.Current != null ? "LIVE" : "LATEST";
@@ -136,8 +139,8 @@ internal sealed class MeterWindow
         Button("export", new Rect(397, 173, 105, 28), "Export report", fight != null, () => { if (fight != null) plugin.Export(fight); });
         for (int i = 0; i < Tabs.Length; i++)
         {
-            int value = i;
-            Button("tab:" + i, new Rect(18 + i * 69, 214, 69, 28), Tabs[i], true, () => { tab = value; page = 0; }, tab == i, true);
+            int value = i; float tabWidth = 484f / Tabs.Length;
+            Button("tab:" + i, new Rect(18 + i * tabWidth, 214, tabWidth, 28), Tabs[i], true, () => { tab = value; if (value == 7) selectedTarget = ""; page = 0; }, tab == i, true);
         }
         if (fight == null)
         {
@@ -148,13 +151,15 @@ internal sealed class MeterWindow
         else if (tab < 4) DrawRanking();
         else if (tab == 4) DrawDetails();
         else if (tab == 5) DrawBuffs();
-        else DrawDeaths();
+        else if (tab == 6) DrawDeaths();
+        else DrawComparison();
         Button("page:prev", new Rect(18, 552, 31, 23), "<", page > 0, () => page--);
         Text(new Rect(54, 552, 110, 23), $"{page + 1} / {pageCount}", 10, Muted);
         Button("page:next", new Rect(163, 552, 31, 23), ">", page + 1 < pageCount, () => page++);
         Text(new Rect(212, 552, 290, 23), fight == null ? "" : $"Unattributed {unknown:N0}   ·   {fight.Events.Count:N0} events", 10, Muted, TextAnchor.MiddleRight);
         Line(582);
         string interaction = tab == 4 && fight != null ? "INTERACTING  ·  Click a breakdown row to isolate it. Click again to clear." :
+            plugin.WindowLocked.Value ? "INTERACTING  ·  Panel locked. Use Unlock panel to enable dragging." :
             "INTERACTING  ·  Click a player for details. Drag the header to move.";
         string status = plugin.Issue.Length > 0 ? plugin.Issue : Notice.Length > 0 ? Notice : plugin.Interacting ? interaction : "Press F8 to browse fights, change tabs, or move this panel.";
         Text(new Rect(18, 588, 484, 24), status, 10, plugin.Issue.Length > 0 ? Gold : Muted);
@@ -280,6 +285,61 @@ internal sealed class MeterWindow
         foreach (var e in fight.Events.Where(e => e.Kind == "damage" && e.Target.Id == death.Target.Id && e.Time <= death.Time && e.Time >= death.Time - 10).Reverse().Take(5))
             DetailLine(292 + i++ * 27, e.Source.Name + " · " + e.Ability, e.Amount.ToString("N0"));
     }
+    private Fight? ComparisonFight()
+    {
+        if (fight == null) return null;
+        if (plugin.Tracker.Current?.Id == fight.Id) return plugin.Tracker.History.FirstOrDefault();
+        int index = plugin.Tracker.History.FindIndex(candidate => candidate.Id == fight.Id);
+        return index >= 0 && index + 1 < plugin.Tracker.History.Count ? plugin.Tracker.History[index + 1] : null;
+    }
+    private void DrawComparison()
+    {
+        var previous = ComparisonFight();
+        if (previous == null)
+        {
+            Pages(0);
+            Text(new Rect(22, 292, 476, 28), "No earlier fight is available for comparison.", 13, Muted, TextAnchor.MiddleCenter);
+            Text(new Rect(22, 328, 476, 24), "Finish another encounter, then return to this tab.", 11, Muted, TextAnchor.MiddleCenter);
+            return;
+        }
+        var currentRows = CombatTracker.Rows(fight!); var previousRows = CombatTracker.Rows(previous);
+        double currentDuration = fight!.Duration(Plugin.Now), previousDuration = previous.Duration(Plugin.Now);
+        double currentDamage = currentRows.Sum(r => r.Damage), previousDamage = previousRows.Sum(r => r.Damage);
+        Text(new Rect(18, 251, 235, 24), "CURRENT  ·  " + fight.Title, 11, Gold, bold: true);
+        Text(new Rect(267, 251, 235, 24), "PREVIOUS  ·  " + previous.Title, 11, Muted, TextAnchor.MiddleRight, true);
+        ComparisonMetric(18, "GROUP DAMAGE", currentDamage, previousDamage, "N0");
+        ComparisonMetric(183, "GROUP DPS", currentDamage / currentDuration, previousDamage / previousDuration, "N1");
+        ComparisonMetric(348, "DURATION", currentDuration, previousDuration, "0.0", "s");
+        Text(new Rect(24, 354, 206, 19), "PLAYER", 9, Muted);
+        Text(new Rect(235, 354, 82, 19), "CURRENT", 9, Muted, TextAnchor.MiddleRight);
+        Text(new Rect(322, 354, 82, 19), "PREVIOUS", 9, Muted, TextAnchor.MiddleRight);
+        Text(new Rect(409, 354, 83, 19), "CHANGE", 9, Muted, TextAnchor.MiddleRight);
+        var previousById = previousRows.ToDictionary(r => r.Actor.Id);
+        var actors = currentRows.Select(r => r.Actor).Concat(previousRows.Select(r => r.Actor)).GroupBy(a => a.Id).Select(g => g.First()).ToArray();
+        var comparisons = actors.Select(actor =>
+        {
+            double current = currentRows.FirstOrDefault(r => r.Actor.Id == actor.Id)?.Damage / currentDuration ?? 0;
+            double prior = previousById.TryGetValue(actor.Id, out var row) ? row.Damage / previousDuration : 0;
+            return (Actor: actor, Current: current, Previous: prior, Delta: current - prior);
+        }).OrderByDescending(value => value.Current).ThenByDescending(value => value.Previous).ToArray();
+        Pages(comparisons.Length, 6); int line = 0;
+        foreach (var value in comparisons.Skip(page * 6).Take(6))
+        {
+            float y = 376 + line++ * 27; Box(new Rect(18, y, 484, 25), Surface);
+            Text(new Rect(27, y, 200, 25), value.Actor.Name, 11, Ink);
+            Text(new Rect(235, y, 82, 25), value.Current.ToString("N1"), 11, Accent, TextAnchor.MiddleRight, true);
+            Text(new Rect(322, y, 82, 25), value.Previous.ToString("N1"), 11, Muted, TextAnchor.MiddleRight);
+            Text(new Rect(409, y, 83, 25), Signed(value.Delta, "N1"), 11, value.Delta >= 0 ? Accent : Gold, TextAnchor.MiddleRight, true);
+        }
+    }
+    private void ComparisonMetric(float x, string label, double current, double previous, string format, string suffix = "")
+    {
+        Box(new Rect(x, 280, 154, 62), Surface);
+        Text(new Rect(x + 9, 282, 136, 14), label, 8, Muted);
+        Text(new Rect(x + 9, 297, 136, 22), current.ToString(format) + suffix, 16, Ink, bold: true);
+        Text(new Rect(x + 9, 320, 136, 17), Signed(current - previous, format) + suffix, 9, current >= previous ? Accent : Gold, bold: true);
+    }
+    private static string Signed(double value, string format) => (value >= 0 ? "+" : "") + value.ToString(format);
     private void DetailLine(float y, string name, string amount)
     {
         Box(new Rect(18, y, 484, 25), Surface);

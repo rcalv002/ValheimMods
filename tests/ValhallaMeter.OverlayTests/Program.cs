@@ -37,6 +37,7 @@ try
 Damage(10,30,"Boar");plugin.Tracker.Finish("test");Damage(20,60,"Troll");plugin.Tracker.Finish("test");Draw();
 Check(Has("Troll"),"Latest fight not displayed");Click("Older");Check(Has("Boar")&&Has("HISTORY"),"Actual Older hit target failed");
 Click("Newer");Check(Has("Troll"),"Actual Newer hit target failed");Click("Live");Check(Has("LATEST"),"Actual Live hit target failed");
+Click("Compare");Check(Has("CURRENT  ·  Troll")&&Has("PREVIOUS  ·  Boar"),"Fight comparison did not select the preceding encounter");Click("Damage");
 Damage(30,90,"Greydwarf","Iron mace","Blunt");Damage(32,10,"Neck","Huntsman bow","Pierce");Draw();Check(Has("LIVE")&&Has("2 targets · ALL"),"Live mixed-target view failed");
 ClickTargetNext();Check(Has("Greydwarf"),"First target filter failed");ClickTargetNext();Check(Has("Neck"),"Second target filter failed");
 Click("Older");Damage(34,10,"Greydwarf");plugin.Tracker.Finish("test");Draw();Check(Has("Troll"),"History drifted");
@@ -52,6 +53,7 @@ Click("Damage");plugin.Interacting=false;Click("Older");Check(Has("2 targets · 
 plugin.Interacting=true;plugin.WindowScale.Value=1.5f;Draw();Click("Older");Check(Has("Troll"),"Scaled hit testing failed");
 Click("Export report");Check(plugin.Exports==1,"Export control failed");
 plugin.WindowScale.Value=1;Draw();
+Click("Lock panel");Check(Has("Unlock panel")&&plugin.WindowLocked.Value,"Window lock did not activate");Click("Unlock panel");Check(!plugin.WindowLocked.Value,"Window lock did not clear");
 float oldX=plugin.WindowX.Value,oldY=plugin.WindowY.Value;
 var header=GUI.Commands.Single(c=>c.Text=="VALHALLA").Area;
 ZInput.pointerPosition=new Vector3(header.x+20,Screen.height-header.y-10);

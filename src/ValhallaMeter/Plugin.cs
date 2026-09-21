@@ -10,7 +10,7 @@ using ValhallaMeter.Core;
 namespace ValhallaMeter;
 
 [DefaultExecutionOrder(-10000)]
-[BepInPlugin("local.valhallameter", "Valhalla Meter", "0.2.2")]
+[BepInPlugin("local.valhallameter", "Valhalla Meter", "0.2.3")]
 public sealed class Plugin : BaseUnityPlugin
 {
     internal static Plugin? Instance;
@@ -31,6 +31,8 @@ public sealed class Plugin : BaseUnityPlugin
     internal ConfigEntry<float> WindowX = null!;
     internal ConfigEntry<float> WindowY = null!;
     internal ConfigEntry<float> WindowScale = null!;
+    internal ConfigEntry<float> WindowOpacity = null!;
+    internal ConfigEntry<bool> WindowLocked = null!;
     internal bool Interacting { get; private set; }
     private double sampleAt;
     private double stamina;
@@ -55,6 +57,8 @@ public sealed class Plugin : BaseUnityPlugin
         WindowX = Config.Bind("Overlay", "X", 30f, "Horizontal window position.");
         WindowY = Config.Bind("Overlay", "Y", 100f, "Vertical window position.");
         WindowScale = Config.Bind("Overlay", "Scale", 1f, new ConfigDescription("Overlay size multiplier; automatically capped to fit the screen.", new AcceptableValueRange<float>(0.75f, 2f)));
+        WindowOpacity = Config.Bind("Overlay", "Opacity", 0.96f, new ConfigDescription("Background opacity.", new AcceptableValueRange<float>(0.35f, 1f)));
+        WindowLocked = Config.Bind("Overlay", "Locked", false, "Prevent dragging the overlay while interacting.");
         group = Config.Bind("Recording", "GroupSync", true, "Exchange cooperative combat telemetry with a modded host. Install on all players and host for best coverage; reconnect after changing.");
         idle = Config.Bind("Recording", "IdleSeconds", 8f, new ConfigDescription("Close a fight after this many seconds without damage or absorption.", new AcceptableValueRange<float>(2, 60)));
         separationDistance = Config.Bind("Recording", "DistantSplitMeters", 80f, new ConfigDescription("Split combat that resumes this far from the previous combat position.", new AcceptableValueRange<float>(20, 500)));
@@ -71,7 +75,7 @@ public sealed class Plugin : BaseUnityPlugin
         {
             harmony = new Harmony("local.valhallameter");
             harmony.PatchAll(typeof(Plugin).Assembly);
-            Logger.LogInfo("Valhalla Meter 0.2.2 loaded. F7 shows/hides; F8 enables interaction. Logs: " + logs.Directory);
+            Logger.LogInfo("Valhalla Meter 0.2.3 loaded. F7 shows/hides; F8 enables interaction. Logs: " + logs.Directory);
         }
         catch (Exception ex)
         {

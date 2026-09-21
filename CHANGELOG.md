@@ -1,3 +1,10 @@
+# 0.2.3 — fight comparison and panel controls
+
+- Add a Compare tab for current-versus-previous group damage, DPS, duration, and per-player DPS deltas.
+- Resolve the comparison baseline consistently for live combat, the latest completed fight, and pinned Older/Newer history.
+- Add configurable panel opacity and a persisted in-panel lock that prevents accidental dragging.
+- Fit all eight analysis tabs into the existing panel without increasing its footprint.
+
 # 0.2.2 — hit results and report parity
 
 - Capture Valheim's final significant resistance result for resolved hits and periodic ticks.
