@@ -1,0 +1,10 @@
+.deps/
+.tools/
+.research/
+**/bin/
+**/obj/
+dist/
+artifacts/
+arcdps.dll
+desktop.ini
+*.user

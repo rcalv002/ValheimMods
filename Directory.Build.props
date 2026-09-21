@@ -1,0 +1,10 @@
+<Project>
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <Deterministic>true</Deterministic>
+    <ValheimPath Condition="'$(ValheimPath)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Valheim</ValheimPath>
+    <GameManaged>$(ValheimPath)\valheim_Data\Managed</GameManaged>
+    <BepInExPath Condition="'$(BepInExPath)' == ''">$(MSBuildThisFileDirectory).deps\bepinex\BepInExPack_Valheim\BepInEx</BepInExPath>
+  </PropertyGroup>
+</Project>
