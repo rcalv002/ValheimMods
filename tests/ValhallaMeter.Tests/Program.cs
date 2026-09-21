@@ -145,6 +145,22 @@ tests.Add(("Late metadata enriches periodic damage beyond the direct-hit window"
     var saved=tracker.Current!.Events.Single(e=>e.Periodic);Check(saved.Weapon=="Fire staff","Periodic weapon metadata missing");
     Check(saved.Ability=="Fire damage over time","Periodic ability label was overwritten");
 }));
+tests.Add(("Distant combat after a gap starts a separate encounter", () => {
+    var tracker=new CombatTracker{IdleSeconds=30,SeparationDistance=80,SeparationSeconds=2};
+    var first=Event(10,20);first.HasPosition=true;first.X=0;tracker.Add(first);
+    var nearby=Event(13,20);nearby.HasPosition=true;nearby.X=50;tracker.Add(nearby);
+    Check(tracker.History.Count==0,"Nearby combat was split");
+    var distant=Event(16,20);distant.HasPosition=true;distant.X=150;tracker.Add(distant);
+    Check(tracker.History.Count==1&&tracker.History[0].EndReason=="Distant combat","Distant combat did not split");
+    Equal(CombatTracker.Rows(tracker.History[0]).Single().Damage,40,"Previous encounter damage");
+    Equal(CombatTracker.Rows(tracker.Current!).Single().Damage,20,"New encounter damage");
+}));
+tests.Add(("A recorded boss death closes its encounter", () => {
+    var boss=new Actor{Id="entity:boss",Name="The Elder"};var tracker=new CombatTracker{IdleSeconds=30};
+    tracker.Add(Event(10,100,target:boss));var death=Event(11,0,"death",new Actor(),boss);death.Boss=true;tracker.Add(death);
+    Check(tracker.Current==null&&tracker.History.Count==1,"Boss fight remained open");
+    Check(tracker.History[0].EndReason=="Boss defeated"&&tracker.History[0].Events.Any(e=>e.Boss),"Boss completion was not preserved");
+}));
 tests.Add(("Previous fight archive restores the newest valid unique history", () => {
     string archiveRoot=Path.Combine(Path.GetTempPath(),"ValhallaMeterArchive-"+Guid.NewGuid().ToString("N"));
     string previous=Path.Combine(archiveRoot,"previous"),current=Path.Combine(archiveRoot,"current");
@@ -225,7 +241,7 @@ string root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../
 string game = args.FirstOrDefault() ?? @"C:\Program Files (x86)\Steam\steamapps\common\Valheim";
 tests.Add(("All Harmony targets and injected fields exist in installed game", () => {
     using var module=ModuleDefinition.ReadModule(Path.Combine(game,"valheim_Data","Managed","assembly_valheim.dll"));
-    foreach(var (type,name) in new[]{("GameCamera","UpdateMouseCapture"),("PlayerController","TakeInput"),("DamageText","RPC_DamageText"),("Character","RPC_Damage"),("Character","Damage"),("Character","ApplyDamage"),("Character","RPC_Heal"),("Character","SetHealth"),("SE_Burning","AddFireDamage"),("SE_Burning","AddSpiritDamage"),("SE_Poison","AddDamage"),("StatusEffect","OnDestroy"),("SE_Shield","OnDamaged"),("Player","OnDeath"),("Attack","OnAttackTrigger"),("Attack","FireProjectileBurst"),("Projectile","OnHit"),("Player","UseStamina"),("Player","UseEitr")}){
+    foreach(var (type,name) in new[]{("GameCamera","UpdateMouseCapture"),("PlayerController","TakeInput"),("DamageText","RPC_DamageText"),("Character","RPC_Damage"),("Character","Damage"),("Character","ApplyDamage"),("Character","RPC_Heal"),("Character","SetHealth"),("Character","OnDeath"),("SE_Burning","AddFireDamage"),("SE_Burning","AddSpiritDamage"),("SE_Poison","AddDamage"),("StatusEffect","OnDestroy"),("SE_Shield","OnDamaged"),("Player","OnDeath"),("Attack","OnAttackTrigger"),("Attack","FireProjectileBurst"),("Projectile","OnHit"),("Player","UseStamina"),("Player","UseEitr")}){
         var t=module.Types.Single(t=>t.Name==type);Check(t.Methods.Count(m=>m.Name==name)==1,$"Missing or ambiguous {type}.{name}");
     }
     foreach(var (type,field) in new[]{("Attack","m_character"),("Attack","m_weapon"),("Projectile","m_owner"),("Projectile","m_weapon"),("SE_Poison","m_damageLeft")})

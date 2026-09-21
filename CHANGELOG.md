@@ -1,3 +1,10 @@
+# 0.2.1 — encounter boundaries
+
+- Attach bounded world-position telemetry to resolved damage, periodic ticks, shields, fallback hits, and deaths.
+- Split combat that resumes at least 80 meters away after a configurable two-second gap, covering travel, portals, and dungeon-coordinate changes.
+- Record enemy deaths and close a fight immediately when its recorded boss dies.
+- Validate saved position data and installed-game hooks, while leaving nearby target swaps and adds in the same encounter.
+
 # 0.2.0 — periodic-damage attribution
 
 - Track fire, spirit, and poison applications on the target's network owner before Valheim discards their attacker.

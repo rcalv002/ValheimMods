@@ -22,6 +22,11 @@ public sealed class CombatEvent
     public string Weapon { get; set; } = "";
     public string Correlation { get; set; } = "";
     public bool Periodic { get; set; }
+    public bool Boss { get; set; }
+    public bool HasPosition { get; set; }
+    public double X { get; set; }
+    public double Y { get; set; }
+    public double Z { get; set; }
     public Dictionary<string, double> Types { get; set; } = new Dictionary<string, double>();
     public string[] Statuses { get; set; } = Array.Empty<string>();
 
@@ -31,7 +36,8 @@ public sealed class CombatEvent
             !Finite(Amount) || Amount < 0 || Amount > 100000000 ||
             !ValidActor(Source) || !ValidActor(Target) || Ability == null || Ability.Length > 160 ||
             Weapon == null || Weapon.Length > 160 || Correlation == null || Correlation.Length > 128 ||
-            Types == null || Types.Count > 16 || Statuses == null || Statuses.Length > 64) return false;
+            Types == null || Types.Count > 16 || Statuses == null || Statuses.Length > 64 ||
+            (HasPosition && (!Finite(X) || !Finite(Y) || !Finite(Z) || Math.Abs(X) > 10000000 || Math.Abs(Y) > 10000000 || Math.Abs(Z) > 10000000))) return false;
         foreach (var pair in Types)
             if (pair.Key.Length > 40 || !Finite(pair.Value) || pair.Value < 0 || pair.Value > 100000000) return false;
         foreach (var status in Statuses) if (status == null || status.Length > 160) return false;
@@ -54,6 +60,10 @@ public sealed class Fight
     public bool Complete { get; set; }
     public string EndReason { get; set; } = "";
     public string Coverage { get; set; } = "Local observations; multiplayer coverage may be incomplete";
+    public bool HasCombatPosition { get; set; }
+    public double LastX { get; set; }
+    public double LastY { get; set; }
+    public double LastZ { get; set; }
     public List<CombatEvent> Events { get; set; } = new List<CombatEvent>();
     public double Duration(double now) => Math.Max(1, (Complete ? End : Math.Max(LastCombat, now)) - Start);
 }

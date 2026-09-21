@@ -71,6 +71,7 @@ internal static class FightArchive
             fight.Title == null || fight.Title.Length > 160 || fight.Coverage == null || fight.Coverage.Length > 500 ||
             !CombatEvent.Finite(fight.Start) || !CombatEvent.Finite(fight.End) || !CombatEvent.Finite(fight.LastCombat) ||
             fight.Start < 0 || fight.End < fight.Start || fight.LastCombat < fight.Start || fight.LastCombat > fight.End + 1 ||
+            (fight.HasCombatPosition && (!CombatEvent.Finite(fight.LastX) || !CombatEvent.Finite(fight.LastY) || !CombatEvent.Finite(fight.LastZ))) ||
             fight.Events == null || fight.Events.Count == 0 || fight.Events.Count > 50000) return false;
         return fight.Events.All(e => e != null && e.Valid() && e.Time >= fight.Start - 2 && e.Time <= fight.End + 1);
     }

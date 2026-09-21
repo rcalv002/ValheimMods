@@ -1,6 +1,6 @@
 # Valhalla Meter
 
-An experimental Valheim combat meter inspired by arcdps. This is an independent C# mod; it does not load, modify, or redistribute arcdps. Version 0.2.0 is built against the locally installed Steam build 25390630 and BepInExPack Valheim 5.4.2350.
+An experimental Valheim combat meter inspired by arcdps. This is an independent C# mod; it does not load, modify, or redistribute arcdps. Version 0.2.1 is built against the locally installed Steam build 25390630 and BepInExPack Valheim 5.4.2350.
 
 ## What is implemented
 
@@ -9,7 +9,7 @@ An experimental Valheim combat meter inspired by arcdps. This is an independent 
 - Weapon and attack breakdowns when attack/projectile metadata can be matched; otherwise skill/attack categories with an explicit unknown weapon.
 - Damage-type breakdowns, total stamina/eitr consumption, and damage per recorded stamina spent.
 - Positive and negative status uptime, including Forsaken powers, sampled every 0.5 seconds.
-- Automatic encounters after 8 seconds without combat activity, 20 recent fights in memory, manual end/export, and 30-minute/50,000-event segmentation.
+- Automatic encounters after 8 seconds without combat activity, distance-aware splitting after travel or zoning, immediate boss-kill completion, 20 recent fights in memory, manual end/export, and 30-minute/50,000-event segmentation.
 - Host-relayed group telemetry and local observation fallback.
 - Personal outgoing DPS fallback when an unmodded player owns the enemy, matched against Valheim's built-in damage-number broadcasts.
 - Owner-side fire, spirit, and poison attribution that carries effective periodic health loss back to the original contributors without inflating total damage.
@@ -24,14 +24,14 @@ The release ZIP contains only this mod and its core library. It contains no Valh
 
 1. Install [BepInExPack for Valheim](https://thunderstore.io/c/valheim/p/denikson/BepInExPack_Valheim/).
 2. Extract the ZIP's `BepInEx/plugins/ValhallaMeter` folder into your game folder or your active mod-manager profile's `BepInEx/plugins` folder.
-3. Start Valheim through the same loader/profile. Look for `Valhalla Meter 0.2.0 loaded` in `BepInEx/LogOutput.log`.
+3. Start Valheim through the same loader/profile. Look for `Valhalla Meter 0.2.1 loaded` in `BepInEx/LogOutput.log`.
 4. Enter a world and attack a creature. Press **F7** if the panel is hidden, then **F8** to interact. Drag the header to move the panel; use the bottom arrows or mouse wheel to page through longer lists.
 
 From this source checkout, `scripts/install.ps1 -InstallLoader` installs into a clean Windows Steam installation after `scripts/build.ps1` has generated the release. It refuses conflicting existing files, writes a receipt, and does not stop/restart the game. `-WhatIf` previews every file operation. Administrator rights may be needed for Program Files.
 
 For group data, install this mod on the host/dedicated server and **all participating clients**. Clients negotiate with the host, which relays batched observations. Unmodded peers may still join, but missing ownership-side events mean incomplete totals. No game RPC formats or ownership rules are changed. Dedicated-server runtime compatibility remains to be tested on a dedicated build.
 
-Configuration is generated at `BepInEx/config/local.valhallameter.cfg`. `GroupSync` controls group telemetry; reconnect after changing it. `IdleSeconds` controls automatic encounter closure. Window position, `Scale`, `ToggleKey` (F7), and `InteractKey` (F8) are configurable. The previous default F8 toggle is migrated to F7 when it conflicts with the new interaction key.
+Configuration is generated at `BepInEx/config/local.valhallameter.cfg`. `GroupSync` controls group telemetry; reconnect after changing it. `IdleSeconds` controls automatic encounter closure. `DistantSplitMeters` and `DistantSplitGapSeconds` control travel/zone separation. Window position, `Scale`, `ToggleKey` (F7), and `InteractKey` (F8) are configurable. The previous default F8 toggle is migrated to F7 when it conflicts with the new interaction key.
 
 To disable this mod, close the game and move only `BepInEx/plugins/ValhallaMeter` outside the plugins directory. Leave a shared BepInEx installation in place for other mods.
 
@@ -57,7 +57,7 @@ This release is an alpha, not a claim of arcdps feature parity. Live solo DPS, r
 - Healing shows the recipient's effective HP gain. Healer identity and overhealing are unavailable in this version. Shield absorption is measured before downstream armor/resistance and is not credited to its caster; it is not directly comparable to effective HP damage.
 - Statuses are sampled, not event-perfect. Short effects may be missed, missing samples expire after 1.5 seconds, and status names are localized. All recorded stamina/eitr use counts, including movement.
 - Group reports are cooperative peer telemetry, not a cheat-proof authority. Group timestamps use host receipt time and can shift with latency. Players who join mid-fight have partial history. A relay outage falls back to local capture after 30 seconds; queued/unacknowledged events can be lost.
-- One relay combines all reporting players' combat. Individual targets can be selected in the overlay, but simultaneous fights in distant areas still share one encounter timer and saved report; there is no range filter or automatic boss-kill segmentation yet.
+- Combat positions split encounters when fighting resumes at least 80 meters away after a two-second gap, and a recorded boss death closes its encounter immediately. A single relay still cannot maintain multiple concurrent fights: rapidly interleaved groups in distant areas can share or repeatedly split reports.
 - Encounters start on player-related damage or shield absorption and finish after idle time. Final duration ends at the last combat/death event; subsequent recovery is excluded. Resource use within two seconds before the first hit is retained. Durations are floored at one second for short encounters.
 - Event queues and memory are bounded. Loss or logging errors are shown in the panel/log. Long-term disk retention is manual.
 - Game updates can change patch targets. A patch failure removes this mod's patches and reports an error. This does not establish compatibility with other mods or every Valheim platform.
@@ -73,7 +73,7 @@ Requires a .NET SDK, the Valheim installation, and BepInEx libraries. No Unity e
 .\scripts\build.ps1 -ValheimPath 'D:\SteamLibrary\steamapps\common\Valheim'
 ```
 
-Build output: `dist/ValhallaMeter-0.2.0.zip`. The build references the installed game's managed assemblies without distributing them. `BepInExPath` can be overridden as an MSBuild property. Dependency downloads, private decompilation notes, and generated outputs are ignored by Git. For an existing installation, `scripts/update.ps1` backs up this mod's DLLs and replaces them atomically when Windows permits; it never stops the game. The new version takes effect on restart.
+Build output: `dist/ValhallaMeter-0.2.1.zip`. The build references the installed game's managed assemblies without distributing them. `BepInExPath` can be overridden as an MSBuild property. Dependency downloads, private decompilation notes, and generated outputs are ignored by Git. For an existing installation, `scripts/update.ps1` backs up this mod's DLLs and replaces them atomically when Windows permits; it never stops the game. The new version takes effect on restart.
 
 The automated checks cover duplicate delivery, group timing, encounter boundaries, death timing, unknown sources, healing/shield aggregation, late metadata, periodic-damage allocation, buff sampling gaps, malformed events, memory bounds, session reset, remote-owner damage matching, target filtering, persistent archive loading, history selection, pointer click cancellation, and actual installed-game method/field presence. A second harness compiles the production `MeterWindow` against a headless drawing/input host and exercises its actual history and target navigation, line plots, breakdown bars, tabs, scaled hit targets, dragging, disabled interaction, and export. It emits `artifacts/overlay-preview.svg`, a layout preview, not an in-game screenshot. These checks do not substitute for runtime Harmony/Unity/network testing. Browser visual QA of the HTML report was blocked by the tool's local-file URL policy; its JavaScript was syntax-checked independently.
 

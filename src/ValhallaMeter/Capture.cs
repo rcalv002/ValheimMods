@@ -51,6 +51,10 @@ internal static class Capture
     internal static string Clean(string? value) => string.IsNullOrEmpty(value) ? "Unknown" :
         new string(value!.Where(c => !char.IsControl(c) && c != '<' && c != '>').Take(150).ToArray());
     internal static string Localize(string value) => Clean(Localization.instance != null ? Localization.instance.Localize(value) : value);
+    internal static CombatEvent At(CombatEvent e, UnityEngine.Vector3 point)
+    {
+        e.HasPosition = true; e.X = point.x; e.Y = point.y; e.Z = point.z; return e;
+    }
     internal static string Fingerprint(Character target, HitData hit)
     {
         var package = new ZPackage();
@@ -115,9 +119,10 @@ internal static class Capture
         if (amount <= 0) return;
         var hit = context.Hit;
         if (context.Kind == "damage" && hit != null && PublishPeriodic(target, context, amount)) return;
-        var e = new CombatEvent { Kind = context.Kind, Target = ActorOf(target), Amount = amount,
+        var e = At(new CombatEvent { Kind = context.Kind, Target = ActorOf(target), Amount = amount,
             Source = hit != null ? ActorOf(hit.GetAttacker()) : new Actor(),
-            Ability = hit != null ? (hit.m_skill != Skills.SkillType.None ? hit.m_skill.ToString() : hit.m_hitType.ToString()) : "Healing / regeneration" };
+            Ability = hit != null ? (hit.m_skill != Skills.SkillType.None ? hit.m_skill.ToString() : hit.m_hitType.ToString()) : "Healing / regeneration" },
+            hit != null ? hit.m_point : target.transform.position);
         if (hit != null)
         {
             if (Tags.TryGetValue(hit, out var tag)) e.Correlation = tag.Key;
@@ -150,16 +155,16 @@ internal static class Capture
             var result = Periodic.Consume(destination.Id, component.Type, component.Raw, componentEffective, Plugin.Now);
             foreach (var share in result.Shares)
             {
-                var e = new CombatEvent { Kind = "damage", Periodic = true, Source = share.Source, Target = destination,
+                var e = At(new CombatEvent { Kind = "damage", Periodic = true, Source = share.Source, Target = destination,
                     Amount = share.Amount, Ability = component.Type + " damage over time", Weapon = share.Weapon,
-                    Correlation = share.Correlation };
+                    Correlation = share.Correlation }, context.Hit.m_point);
                 e.Types[component.Type] = share.Amount;
                 Plugin.Instance?.Publish(e);
             }
             if (result.Unattributed > 0.0001)
             {
-                var e = new CombatEvent { Kind = "damage", Periodic = true, Target = destination, Amount = result.Unattributed,
-                    Ability = component.Type + " damage over time" };
+                var e = At(new CombatEvent { Kind = "damage", Periodic = true, Target = destination, Amount = result.Unattributed,
+                    Ability = component.Type + " damage over time" }, context.Hit.m_point);
                 e.Types[component.Type] = result.Unattributed;
                 Plugin.Instance?.Publish(e);
             }
@@ -290,8 +295,8 @@ internal static class ShieldPatch
     {
         if (!__instance.m_character || !__instance.m_character.IsOwner()) return;
         double absorbed = Math.Max(0, __state - hit.GetTotalDamage());
-        if (absorbed > 0) Plugin.Instance?.Publish(new CombatEvent { Kind = "shield", Source = Capture.ActorOf(attacker),
-            Target = Capture.ActorOf(__instance.m_character), Amount = absorbed, Ability = "Shield absorption (before armor)" });
+        if (absorbed > 0) Plugin.Instance?.Publish(Capture.At(new CombatEvent { Kind = "shield", Source = Capture.ActorOf(attacker),
+            Target = Capture.ActorOf(__instance.m_character), Amount = absorbed, Ability = "Shield absorption (before armor)" }, hit.m_point));
     });
 }
 
@@ -300,7 +305,19 @@ internal static class DeathPatch
 {
     private static void Prefix(Player __instance) => Plugin.Guard(() =>
     {
-        if (__instance.IsOwner()) Plugin.Instance?.Publish(new CombatEvent { Kind = "death", Target = Capture.ActorOf(__instance), Ability = "Death" });
+        if (__instance.IsOwner()) Plugin.Instance?.Publish(Capture.At(new CombatEvent { Kind = "death", Target = Capture.ActorOf(__instance), Ability = "Death" }, __instance.transform.position));
+    });
+}
+
+[HarmonyPatch(typeof(Character), nameof(Character.OnDeath))]
+internal static class EnemyDeathPatch
+{
+    private static void Prefix(Character __instance) => Plugin.Guard(() =>
+    {
+        if (__instance.IsPlayer() || !__instance.IsOwner()) return;
+        bool boss = __instance.IsBoss();
+        Plugin.Instance?.Publish(Capture.At(new CombatEvent { Kind = "death", Boss = boss, Target = Capture.ActorOf(__instance),
+            Ability = boss ? "Boss defeated" : "Enemy defeated" }, __instance.transform.position));
     });
 }
 

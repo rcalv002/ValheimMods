@@ -16,6 +16,8 @@ public sealed class CombatTracker
     public List<Fight> History { get; } = new List<Fight>();
     public double IdleSeconds { get; set; } = 8;
     public int MaxEvents { get; set; } = 50000;
+    public double SeparationDistance { get; set; } = 80;
+    public double SeparationSeconds { get; set; } = 2;
     public string Coverage { get; set; } = "Local observations; multiplayer coverage may be incomplete";
     public event Action<Fight>? Finished;
 
@@ -46,6 +48,7 @@ public sealed class CombatTracker
             if (statuses.Count < 128 || statuses.ContainsKey(e.Source.Id)) statuses[e.Source.Id] = e;
         }
         bool combat = (e.Kind == "damage" || e.Kind == "shield") && e.Amount > 0 && (e.Source.Player || e.Target.Player);
+        if (Current != null && combat && DistantFromCurrent(Current, e)) Finish("Distant combat");
         if (Current == null && combat)
         {
             Current = new Fight { Start = e.Time, LastCombat = e.Time, Coverage = Coverage,
@@ -67,12 +70,32 @@ public sealed class CombatTracker
         }
         if (combat || e.Kind == "death") Current.LastCombat = Math.Max(Current.LastCombat, e.Time);
         Current.Events.Add(e);
-        if (combat) UpdateTitle(Current);
+        if (combat)
+        {
+            if (e.HasPosition)
+            {
+                Current.HasCombatPosition = true;
+                Current.LastX = e.X; Current.LastY = e.Y; Current.LastZ = e.Z;
+            }
+            UpdateTitle(Current);
+        }
+        if (e.Kind == "death" && e.Boss && Current.Events.Any(hit => hit.Kind == "damage" && hit.Target.Id == e.Target.Id))
+        {
+            Finish("Boss defeated");
+            return true;
+        }
         if (Current.Events.Count >= MaxEvents) Finish("Event limit");
         return true;
     }
 
     private static string OriginKey(CombatEvent e) => e.Source.Id + ":" + e.Correlation;
+    private bool DistantFromCurrent(Fight fight, CombatEvent e)
+    {
+        if (!fight.HasCombatPosition || !e.HasPosition || e.Time - fight.LastCombat < SeparationSeconds) return false;
+        double dx = e.X - fight.LastX, dy = e.Y - fight.LastY, dz = e.Z - fight.LastZ;
+        double distance = Math.Max(1, SeparationDistance);
+        return dx * dx + dy * dy + dz * dz >= distance * distance;
+    }
     private static void Enrich(CombatEvent hit, CombatEvent origin)
     {
         hit.Weapon = origin.Weapon;

@@ -10,7 +10,7 @@ using ValhallaMeter.Core;
 namespace ValhallaMeter;
 
 [DefaultExecutionOrder(-10000)]
-[BepInPlugin("local.valhallameter", "Valhalla Meter", "0.2.0")]
+[BepInPlugin("local.valhallameter", "Valhalla Meter", "0.2.1")]
 public sealed class Plugin : BaseUnityPlugin
 {
     internal static Plugin? Instance;
@@ -26,6 +26,8 @@ public sealed class Plugin : BaseUnityPlugin
     private ConfigEntry<KeyboardShortcut> toggle = null!;
     private ConfigEntry<KeyboardShortcut> interact = null!;
     private ConfigEntry<float> idle = null!;
+    private ConfigEntry<float> separationDistance = null!;
+    private ConfigEntry<float> separationSeconds = null!;
     internal ConfigEntry<float> WindowX = null!;
     internal ConfigEntry<float> WindowY = null!;
     internal ConfigEntry<float> WindowScale = null!;
@@ -55,6 +57,8 @@ public sealed class Plugin : BaseUnityPlugin
         WindowScale = Config.Bind("Overlay", "Scale", 1f, new ConfigDescription("Overlay size multiplier; automatically capped to fit the screen.", new AcceptableValueRange<float>(0.75f, 2f)));
         group = Config.Bind("Recording", "GroupSync", true, "Exchange cooperative combat telemetry with a modded host. Install on all players and host for best coverage; reconnect after changing.");
         idle = Config.Bind("Recording", "IdleSeconds", 8f, new ConfigDescription("Close a fight after this many seconds without damage or absorption.", new AcceptableValueRange<float>(2, 60)));
+        separationDistance = Config.Bind("Recording", "DistantSplitMeters", 80f, new ConfigDescription("Split combat that resumes this far from the previous combat position.", new AcceptableValueRange<float>(20, 500)));
+        separationSeconds = Config.Bind("Recording", "DistantSplitGapSeconds", 2f, new ConfigDescription("Require this quiet gap before distance can split an encounter.", new AcceptableValueRange<float>(0.5f, 10)));
         logs = new LogWriter(Paths.BepInExRootPath);
         var archive = FightArchive.Load(logs.LogRoot, logs.Directory);
         Tracker.History.AddRange(archive.Fights);
@@ -67,7 +71,7 @@ public sealed class Plugin : BaseUnityPlugin
         {
             harmony = new Harmony("local.valhallameter");
             harmony.PatchAll(typeof(Plugin).Assembly);
-            Logger.LogInfo("Valhalla Meter 0.2.0 loaded. F7 shows/hides; F8 enables interaction. Logs: " + logs.Directory);
+            Logger.LogInfo("Valhalla Meter 0.2.1 loaded. F7 shows/hides; F8 enables interaction. Logs: " + logs.Directory);
         }
         catch (Exception ex)
         {
@@ -86,6 +90,8 @@ public sealed class Plugin : BaseUnityPlugin
                 "Local observations; personal outgoing damage includes displayed-number fallback" :
                 "Group: owner-resolved observations from the modded relay";
             Tracker.IdleSeconds = idle.Value;
+            Tracker.SeparationDistance = separationDistance.Value;
+            Tracker.SeparationSeconds = separationSeconds.Value;
             Tracker.Tick(Now);
             if (ShortcutDown(toggle.Value)) { visible.Value = !visible.Value; if (!visible.Value) Interacting = false; }
             if (Interacting && (!Player.m_localPlayer || BusyUI() || ZInput.GetKeyDown(KeyCode.Escape))) Interacting = false;
