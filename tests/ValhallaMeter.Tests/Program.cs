@@ -119,6 +119,8 @@ tests.Add(("DPS histogram preserves damage across elapsed-time buckets", () => {
     Check(bins.Length==4,"Wrong histogram width");Equal(bins[0],10,"First DPS bucket");Equal(bins[1],20,"Second DPS bucket");
     Equal(bins[2],0,"Empty DPS bucket");Equal(bins[3],40,"Final DPS bucket");
     Equal(bins.Sum()*(CombatTracker.Duration(fight,4,"")/bins.Length),70,"Histogram changed total damage");
+    var filtered=CombatTracker.DpsHistogram(fight,a.Id,"",4,4,e=>e.Time<2?e.Amount:0);
+    Equal(filtered.Sum()*(CombatTracker.Duration(fight,4,"")/filtered.Length),30,"Filtered histogram changed selected damage");
 }));
 tests.Add(("Previous fight archive restores the newest valid unique history", () => {
     string archiveRoot=Path.Combine(Path.GetTempPath(),"ValhallaMeterArchive-"+Guid.NewGuid().ToString("N"));

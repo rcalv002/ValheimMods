@@ -171,7 +171,8 @@ public sealed class CombatTracker
         return (start, Math.Max(start + 1, end));
     }
 
-    public static double[] DpsHistogram(Fight fight, string playerId, string targetId, double now, int bins)
+    public static double[] DpsHistogram(Fight fight, string playerId, string targetId, double now, int bins,
+        Func<CombatEvent, double>? amountSelector = null)
     {
         bins = Math.Max(1, Math.Min(120, bins));
         var range = TimeRange(fight, now, targetId);
@@ -180,8 +181,10 @@ public sealed class CombatTracker
         foreach (var e in fight.Events.Where(e => e.Kind == "damage" && e.Source.Id == playerId &&
             (targetId.Length == 0 || e.Target.Id == targetId)))
         {
+            double amount = amountSelector == null ? e.Amount : amountSelector(e);
+            if (!CombatEvent.Finite(amount) || amount <= 0) continue;
             int index = Math.Min(bins - 1, Math.Max(0, (int)((e.Time - range.Start) / span * bins)));
-            result[index] += e.Amount / binSeconds;
+            result[index] += amount / binSeconds;
         }
         return result;
     }

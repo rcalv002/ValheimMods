@@ -1,3 +1,9 @@
+# 0.1.9 — selectable damage series
+
+- Make weapon/skill and damage-type rows clickable in F8 interaction mode.
+- Filter the DPS line, hit count, total, average, peak, and hover values to the selected category while retaining the full-fight total for context.
+- Highlight the active breakdown row; click it again to return to all player damage.
+
 # 0.1.8 — interactive DPS cursor
 
 - Show the nearest line-plot bucket's elapsed time and exact DPS while hovering the graph in F8 interaction mode.

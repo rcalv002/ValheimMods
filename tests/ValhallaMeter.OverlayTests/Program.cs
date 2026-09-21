@@ -42,7 +42,10 @@ ClickTargetNext();Check(Has("Greydwarf"),"First target filter failed");ClickTarg
 Click("Older");Damage(34,10,"Greydwarf");plugin.Tracker.Finish("test");Draw();Check(Has("Troll"),"History drifted");
 Click("Live");Click("Details");Check(Has("Astrid")&&GUI.Commands.Any(c=>c.Text!=null&&c.Text.StartsWith("DPS OVER TIME"))&&Has("Iron mace")&&Has("Huntsman bow"),"Details histogram did not render time and weapon damage");
 HoverPlot(.7f);Check(GUI.Commands.Any(c=>c.Text!=null&&c.Text.Contains("s  ·  ")&&c.Text.EndsWith(" DPS")),"DPS plot hover cursor did not expose its time bucket");
+Click("Iron mace");Check(GUI.Commands.Any(c=>c.Text=="Iron mace  ·  1 HIT")&&GUI.Commands.Any(c=>c.Text!=null&&c.Text.StartsWith("90 / 110 TOTAL")),"Weapon row did not filter the DPS line");
+Click("Iron mace");Check(GUI.Commands.Any(c=>c.Text=="DPS OVER TIME  ·  3 HITS"),"Active weapon row did not restore all damage");
 Click("Damage types");Check(Has("Blunt")&&Has("Pierce"),"Damage-type histogram did not render");
+Click("Pierce");Check(GUI.Commands.Any(c=>c.Text=="Pierce  ·  1 HIT")&&GUI.Commands.Any(c=>c.Text!=null&&c.Text.StartsWith("10 / 110 TOTAL")),"Damage-type row did not filter the DPS line");
 Click("Buffs");Check(Has("No status samples for this player."),"Buff tab did not switch");
 Click("Damage");plugin.Interacting=false;Click("Older");Check(Has("2 targets · ALL"),"Inactive pointer changed selection");
 plugin.Interacting=true;plugin.WindowScale.Value=1.5f;Draw();Click("Older");Check(Has("Troll"),"Scaled hit testing failed");
@@ -57,12 +60,13 @@ ZInput.Held=false;ZInput.Up=true;window.HandleInput();ZInput.Up=false;Draw();
 Check(plugin.WindowX.Value==oldX+50&&plugin.WindowY.Value==oldY+30,"Dragging did not save window position");
 Check(Has("F8  ·  RETURN TO GAME"),"Wrong interaction shortcut label");
 Click("Live");Click("Details");Click("Weapons / skills");
+Click("Iron mace");
 HoverPlot(.7f);
-Check(GUI.Commands.Any(c=>c.Text!=null&&c.Text.StartsWith("DPS OVER TIME"))&&GUI.Commands.Any(c=>Math.Abs(c.Rotation)>.1)&&Has("0.0s")&&Has("Iron mace")&&Has("Huntsman bow"),"Final line-plot preview is incomplete");
+Check(GUI.Commands.Any(c=>c.Text=="Iron mace  ·  1 HIT")&&GUI.Commands.Any(c=>c.Text!=null&&c.Text.StartsWith("90 / 110 TOTAL"))&&GUI.Commands.Any(c=>Math.Abs(c.Rotation)>.1)&&Has("0.0s")&&Has("Iron mace")&&Has("Huntsman bow"),"Final selected-series line-plot preview is incomplete");
 plugin.WindowX.Value=30;plugin.WindowY.Value=30;
 string root=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"../../../../../"));Directory.CreateDirectory(Path.Combine(root,"artifacts"));
 File.WriteAllText(Path.Combine(root,"artifacts","overlay-preview.svg"),GUI.Svg());
-System.Console.WriteLine("PASS Production overlay: Older/Newer/Live, target filters, interactive DPS line plot, damage breakdowns, stable history, tabs, scaled hit targets, export and dragging");
+System.Console.WriteLine("PASS Production overlay: Older/Newer/Live, target filters, selectable interactive DPS series, damage breakdowns, stable history, tabs, scaled hit targets, export and dragging");
 System.Console.WriteLine("Wrote artifacts/overlay-preview.svg (headless layout preview, not an in-game screenshot).");
 }
 catch(Exception ex)

@@ -22,6 +22,7 @@ internal sealed class MeterWindow
     private int tab, page, pageCount = 1, detailMode;
     private string selected = "";
     private string selectedTarget = "";
+    private string selectedBreakdown = "";
     private double duration = 1, total, unknown;
     private bool dragging;
     private Vector2 dragOffset;
@@ -49,7 +50,7 @@ internal sealed class MeterWindow
     public void Refresh()
     {
         Fight? next = selection.Resolve(plugin.Tracker.Current, plugin.Tracker.History);
-        if (next?.Id != fight?.Id) { page = 0; selectedTarget = ""; Notice = ""; }
+        if (next?.Id != fight?.Id) { page = 0; selectedTarget = ""; selectedBreakdown = ""; Notice = ""; }
         fight = next;
         if (fight == null) { rows.Clear(); enemyTargets.Clear(); total = unknown = 0; return; }
         enemyTargets = CombatTracker.Targets(fight);
@@ -153,7 +154,9 @@ internal sealed class MeterWindow
         Button("page:next", new Rect(163, 552, 31, 23), ">", page + 1 < pageCount, () => page++);
         Text(new Rect(212, 552, 290, 23), fight == null ? "" : $"Unattributed {unknown:N0}   ·   {fight.Events.Count:N0} events", 10, Muted, TextAnchor.MiddleRight);
         Line(582);
-        string status = plugin.Issue.Length > 0 ? plugin.Issue : Notice.Length > 0 ? Notice : plugin.Interacting ? "INTERACTING  ·  Click a player for details. Drag the header to move." : "Press F8 to browse fights, change tabs, or move this panel.";
+        string interaction = tab == 4 && fight != null ? "INTERACTING  ·  Click a breakdown row to isolate it. Click again to clear." :
+            "INTERACTING  ·  Click a player for details. Drag the header to move.";
+        string status = plugin.Issue.Length > 0 ? plugin.Issue : Notice.Length > 0 ? Notice : plugin.Interacting ? interaction : "Press F8 to browse fights, change tabs, or move this panel.";
         Text(new Rect(18, 588, 484, 24), status, 10, plugin.Issue.Length > 0 ? Gold : Muted);
     }
     private void Stat(float x, string label, string value, Color color)
@@ -184,7 +187,7 @@ internal sealed class MeterWindow
             Text(new Rect(240, y, 86, 27), (amount / rateDuration).ToString("N1"), 13, Accent, TextAnchor.MiddleRight, true);
             Text(new Rect(331, y, 90, 27), amount.ToString("N0"), 12, Ink, TextAnchor.MiddleRight);
             Text(new Rect(424, y, 68, 27), (all > 0 ? amount / all * 100 : 0).ToString("0.0") + "%", 11, Muted, TextAnchor.MiddleRight);
-            Hit("player:" + r.Actor.Id, area, () => { selected = r.Actor.Id; tab = 4; page = 0; });
+            Hit("player:" + r.Actor.Id, area, () => { selected = r.Actor.Id; selectedBreakdown = ""; tab = 4; page = 0; });
         }
         if (tab == 2) Text(new Rect(22, 526, 478, 18), "Effective healing received · healer identity unavailable", 10, Muted);
         if (tab == 3) Text(new Rect(22, 526, 478, 18), "Absorbed on recipient · measured before armor", 10, Muted);
@@ -198,7 +201,8 @@ internal sealed class MeterWindow
     private void Cycle(int delta)
     {
         if (rows.Count == 0) return;
-        selected = rows[(Math.Max(0, rows.FindIndex(r => r.Actor.Id == selected)) + delta + rows.Count) % rows.Count].Actor.Id; page = 0;
+        selected = rows[(Math.Max(0, rows.FindIndex(r => r.Actor.Id == selected)) + delta + rows.Count) % rows.Count].Actor.Id;
+        selectedBreakdown = ""; page = 0;
     }
     private void DrawDetails()
     {
@@ -207,12 +211,11 @@ internal sealed class MeterWindow
         var hits = fight!.Events.Where(e => e.Kind == "damage" && e.Source.Id == selected &&
             (selectedTarget.Length == 0 || e.Target.Id == selectedTarget)).ToArray();
         double combined = hits.Sum(e => e.Amount);
-        DrawDpsLinePlot(r, combined);
-        Button("detail:weapons", new Rect(18, 436, 112, 23), "Weapons / skills", true, () => { detailMode = 0; page = 0; }, detailMode == 0, true);
-        Button("detail:types", new Rect(136, 436, 100, 23), "Damage types", true, () => { detailMode = 1; page = 0; }, detailMode == 1, true);
+        Button("detail:weapons", new Rect(18, 436, 112, 23), "Weapons / skills", true, () => { detailMode = 0; selectedBreakdown = ""; page = 0; }, detailMode == 0, true);
+        Button("detail:types", new Rect(136, 436, 100, 23), "Damage types", true, () => { detailMode = 1; selectedBreakdown = ""; page = 0; }, detailMode == 1, true);
         List<(string Name, double Amount)> values;
         if (detailMode == 0)
-            values = hits.GroupBy(e => e.Weapon.Length > 0 ? e.Weapon : e.Ability.Length > 0 ? e.Ability + " · weapon unknown" : "Unknown")
+            values = hits.GroupBy(WeaponCategory)
                 .Select(g => (g.Key, g.Sum(e => e.Amount))).OrderByDescending(v => v.Item2).ToList();
         else
         {
@@ -221,12 +224,23 @@ internal sealed class MeterWindow
             double unresolved = Math.Max(0, combined - values.Sum(v => v.Amount));
             if (unresolved > 0.05) values.Add(("Unresolved / fallback", unresolved));
         }
+        if (selectedBreakdown.Length > 0 && !values.Any(v => v.Name == selectedBreakdown)) selectedBreakdown = "";
+        Func<CombatEvent, double>? selector = null;
+        if (selectedBreakdown.Length > 0)
+            selector = detailMode == 0
+                ? e => WeaponCategory(e) == selectedBreakdown ? e.Amount : 0
+                : e => DamageTypeAmount(e, selectedBreakdown);
+        double selectedTotal = selector == null ? combined : hits.Sum(selector);
+        int selectedHits = selector == null ? hits.Length : hits.Count(e => selector(e) > 0);
+        DrawDpsLinePlot(r, combined, selectedTotal, selectedHits, selector);
         Pages(values.Count, 3); int i = 0;
         foreach (var value in values.Skip(page * 3).Take(3))
         {
             double share = combined > 0 ? value.Amount / combined * 100 : 0;
-            HistogramBar(466 + i++ * 25, 22, value.Name, value.Amount, Math.Max(1, combined),
-                value.Amount.ToString("N0") + "  " + share.ToString("0.0") + "%", false);
+            string name = value.Name;
+            BreakdownBar(466 + i++ * 25, 22, name, value.Amount, Math.Max(1, combined),
+                value.Amount.ToString("N0") + "  " + share.ToString("0.0") + "%", name == selectedBreakdown,
+                () => { selectedBreakdown = selectedBreakdown == name ? "" : name; });
         }
         if (values.Count == 0) Text(new Rect(22, 474, 480, 30), detailMode == 0 ? "No weapon or skill damage recorded." : "No damage-type data recorded.", 11, Muted);
     }
@@ -237,7 +251,7 @@ internal sealed class MeterWindow
         options.AddRange(enemyTargets.Select(t => t.Id));
         int index = options.IndexOf(selectedTarget);
         selectedTarget = options[(Math.Max(0, index) + delta + options.Count) % options.Count];
-        page = 0;
+        selectedBreakdown = ""; page = 0;
     }
     private void DrawBuffs()
     {
@@ -264,23 +278,34 @@ internal sealed class MeterWindow
         Text(new Rect(27, y, 337, 25), name, 11, Ink);
         Text(new Rect(366, y, 126, 25), amount, 12, Accent, TextAnchor.MiddleRight);
     }
-    private void HistogramBar(float y, float height, string name, double amount, double maximum, string value, bool combined)
+    private static string WeaponCategory(CombatEvent e) => e.Weapon.Length > 0 ? e.Weapon :
+        e.Ability.Length > 0 ? e.Ability + " · weapon unknown" : "Unknown";
+    private static double DamageTypeAmount(CombatEvent e, string type)
+    {
+        if (type == "Unresolved / fallback") return Math.Max(0, e.Amount - e.Types.Values.Sum());
+        return e.Types.TryGetValue(type, out double amount) ? amount : 0;
+    }
+    private void BreakdownBar(float y, float height, string name, double amount, double maximum, string value, bool active, Action action)
     {
         var area = new Rect(18, y, 484, height);
-        Box(area, Surface);
+        Box(area, active ? new Color32(52, 61, 48, 255) : Surface);
         float fill = (float)(484 * Math.Clamp(amount / maximum, 0, 1));
-        Box(new Rect(18, y, fill, height), combined ? new Color32(40, 79, 84, 255) : new Color32(32, 61, 69, 255));
-        Box(new Rect(18, y + height - 2, fill, 2), combined ? Gold : Accent);
-        Text(new Rect(27, y, 305, height), name, combined ? 11 : 10, combined ? Gold : Ink, bold: combined);
-        Text(new Rect(334, y, 158, height), value, combined ? 12 : 10, combined ? Ink : Accent, TextAnchor.MiddleRight, combined);
+        Box(new Rect(18, y, fill, height), active ? new Color32(76, 67, 45, 255) : new Color32(32, 61, 69, 255));
+        Box(new Rect(18, y + height - 2, fill, 2), active ? Gold : Accent);
+        Text(new Rect(27, y, 305, height), name, 10, active ? Gold : Ink, bold: active);
+        Text(new Rect(334, y, 158, height), value, 10, active ? Gold : Accent, TextAnchor.MiddleRight, active);
+        Hit("breakdown:" + detailMode + ":" + name, area, action);
     }
-    private void DrawDpsLinePlot(PlayerRow row, double combined)
+    private void DrawDpsLinePlot(PlayerRow row, double combined, double selectedTotal, int hits, Func<CombatEvent, double>? selector)
     {
         int bins = Math.Clamp((int)Math.Ceiling(duration), 1, 30);
-        var values = CombatTracker.DpsHistogram(fight!, row.Actor.Id, selectedTarget, Plugin.Now, bins);
+        var values = CombatTracker.DpsHistogram(fight!, row.Actor.Id, selectedTarget, Plugin.Now, bins, selector);
         double peak = values.DefaultIfEmpty(0).Max();
-        Text(new Rect(18, 282, 180, 20), $"DPS OVER TIME  ·  {row.Hits} HITS", 10, Muted, bold: true);
-        Text(new Rect(198, 282, 304, 20), $"{combined:N0} TOTAL   ·   {combined / duration:N1} AVG   ·   {peak:N1} PEAK", 10, Ink, TextAnchor.MiddleRight, true);
+        string series = selectedBreakdown.Length == 0 ? "DPS OVER TIME" : selectedBreakdown;
+        Text(new Rect(18, 282, 180, 20), $"{series}  ·  {hits} {(hits == 1 ? "HIT" : "HITS")}", 10, selectedBreakdown.Length == 0 ? Muted : Gold, bold: true);
+        string summary = selectedBreakdown.Length == 0 ? $"{combined:N0} TOTAL   ·   {combined / duration:N1} AVG   ·   {peak:N1} PEAK" :
+            $"{selectedTotal:N0} / {combined:N0} TOTAL   ·   {selectedTotal / duration:N1} AVG   ·   {peak:N1} PEAK";
+        Text(new Rect(198, 282, 304, 20), summary, 10, Ink, TextAnchor.MiddleRight, true);
         var plot = new Rect(54, 306, 448, 104);
         Box(plot, new Color32(19, 28, 36, 255));
         for (int i = 1; i < 4; i++) Box(new Rect(plot.x, plot.y + i * plot.height / 4, plot.width, 1), Border);
