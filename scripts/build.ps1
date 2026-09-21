@@ -1,6 +1,7 @@
 param([string]$ValheimPath = 'C:\Program Files (x86)\Steam\steamapps\common\Valheim')
 $ErrorActionPreference = 'Stop'
 $repoPath = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot 'verify-release.ps1')
 Push-Location $repoPath
 try {
     dotnet build 'src\ValhallaMeter\ValhallaMeter.csproj' -c Release "-p:ValheimPath=$ValheimPath" --ignore-failed-sources
@@ -42,6 +43,7 @@ try {
         "{0}  {1}" -f (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash, $relative
     }
     Set-Content -LiteralPath (Join-Path $releasePath 'SHA256SUMS.txt') -Value $checksums -Encoding ascii
+    Assert-ValhallaRelease -ReleasePath $releasePath -ExpectedVersion $version
     $zipPath = Join-Path $repoPath "dist\ValhallaMeter-$version.zip"
     if (Test-Path -LiteralPath $zipPath) { Remove-Item -LiteralPath $zipPath }
     Add-Type -AssemblyName System.IO.Compression.FileSystem

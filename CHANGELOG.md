@@ -1,3 +1,10 @@
+# 0.2.5 — verified packages and installations
+
+- Validate every packaged file against `SHA256SUMS.txt` before creating an archive or changing an installation.
+- Reject missing, modified, duplicate, escaped, recursive, or unlisted release files.
+- Add `scripts/verify.ps1` to check both the release package and installed DLLs without changing either.
+- Exercise the verifier against a deliberately modified package and confirm that it rejects the mismatch.
+
 # 0.2.4 — companion attribution and release integrity
 
 - Credit damage from a tamed creature to the player it is actively following, with a distinct `Companion · name` weapon row.

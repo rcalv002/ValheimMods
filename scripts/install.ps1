@@ -5,17 +5,15 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $repoPath = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot 'verify-release.ps1')
 $gamePath = (Resolve-Path -LiteralPath $ValheimPath).Path.TrimEnd('\')
 if (!(Test-Path -LiteralPath (Join-Path $gamePath 'valheim.exe')) -and !(Test-Path -LiteralPath (Join-Path $gamePath 'valheim_server.exe'))) { throw 'Target is not a Valheim installation.' }
 $version = (Get-Content -LiteralPath (Join-Path $repoPath 'manifest.json') -Raw | ConvertFrom-Json).version_number
 if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'Invalid release version.' }
-$releasePath = Join-Path $repoPath "dist\ValhallaMeter-$version\BepInEx\plugins\ValhallaMeter"
+$releaseRoot = Join-Path $repoPath "dist\ValhallaMeter-$version"
+$releasePath = Join-Path $releaseRoot 'BepInEx\plugins\ValhallaMeter'
 $loaderPath = Join-Path $repoPath '.deps\bepinex\BepInExPack_Valheim'
-foreach ($name in @('ValhallaMeter.dll','ValhallaMeter.Core.dll')) {
-    if (!(Test-Path -LiteralPath (Join-Path $releasePath $name))) { throw 'Build the release first with scripts/build.ps1.' }
-}
-$sourceVersion = [System.Reflection.AssemblyName]::GetAssemblyName((Join-Path $releasePath 'ValhallaMeter.dll')).Version.ToString(3)
-if ($sourceVersion -ne $version) { throw "Release assembly version $sourceVersion does not match manifest $version." }
+Assert-ValhallaRelease -ReleasePath $releaseRoot -ExpectedVersion $version
 $corePath = Join-Path $gamePath 'BepInEx\core\BepInEx.dll'
 if (!(Test-Path -LiteralPath $corePath) -and !$InstallLoader) { throw 'BepInEx is missing. Use -InstallLoader for a clean manual installation, or install BepInEx with your mod manager.' }
 $copies = [System.Collections.Generic.List[object]]::new()

@@ -2,13 +2,14 @@
 param([string]$ValheimPath = 'C:\Program Files (x86)\Steam\steamapps\common\Valheim')
 $ErrorActionPreference = 'Stop'
 $repoPath = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot 'verify-release.ps1')
 $gamePath = (Resolve-Path -LiteralPath $ValheimPath).Path.TrimEnd('\')
 if (!(Test-Path -LiteralPath (Join-Path $gamePath 'valheim.exe')) -and !(Test-Path -LiteralPath (Join-Path $gamePath 'valheim_server.exe'))) { throw 'Not a Valheim installation.' }
 $version = (Get-Content -LiteralPath (Join-Path $repoPath 'manifest.json') -Raw | ConvertFrom-Json).version_number
 if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'Invalid release version.' }
-$sourcePath = Join-Path $repoPath "dist\ValhallaMeter-$version\BepInEx\plugins\ValhallaMeter"
-$sourceVersion = [System.Reflection.AssemblyName]::GetAssemblyName((Join-Path $sourcePath 'ValhallaMeter.dll')).Version.ToString(3)
-if ($sourceVersion -ne $version) { throw "Release assembly version $sourceVersion does not match manifest $version." }
+$releaseRoot = Join-Path $repoPath "dist\ValhallaMeter-$version"
+$sourcePath = Join-Path $releaseRoot 'BepInEx\plugins\ValhallaMeter'
+Assert-ValhallaRelease -ReleasePath $releaseRoot -ExpectedVersion $version
 $targetPath = Join-Path $gamePath 'BepInEx\plugins\ValhallaMeter'
 $backupPath = Join-Path $repoPath ('artifacts\backups\' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + [guid]::NewGuid().ToString('N').Substring(0,8))
 $items = foreach ($name in @('ValhallaMeter.Core.dll','ValhallaMeter.dll')) {
