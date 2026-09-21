@@ -34,7 +34,8 @@ void HoverPlot(float fraction)
 }
 try
 {
-Damage(10,30,"Boar");plugin.Tracker.Finish("test");Damage(20,60,"Troll");plugin.Tracker.Finish("test");Draw();
+Damage(10,30,"Boar");plugin.Tracker.Finish("test");Damage(20,60,"Troll");plugin.Tracker.Finish("test");
+plugin.Tracker.History[0].RecordedAtUnix=DateTimeOffset.UtcNow.ToUnixTimeSeconds()-5*60;Draw();
 Check(Has("Troll"),"Latest fight not displayed");Click("Older");Check(Has("Boar")&&Has("HISTORY"),"Actual Older hit target failed");
 Click("Newer");Check(Has("Troll"),"Actual Newer hit target failed");Click("Live");Check(Has("LATEST"),"Actual Live hit target failed");
 Click("Compare");Check(Has("CURRENT  ·  Troll")&&Has("PREVIOUS  ·  Boar"),"Fight comparison did not select the preceding encounter");Click("Damage");
@@ -62,6 +63,7 @@ ZInput.pointerPosition=new Vector3(header.x+70,Screen.height-header.y-40);window
 ZInput.Held=false;ZInput.Up=true;window.HandleInput();ZInput.Up=false;Draw();
 Check(plugin.WindowX.Value==oldX+50&&plugin.WindowY.Value==oldY+30,"Dragging did not save window position");
 Check(Has("F8  ·  RETURN TO GAME"),"Wrong interaction shortcut label");
+Check(GUI.Commands.Any(c=>c.Text!=null&&c.Text.StartsWith("5m ago · ")),"Fight age and local timestamp were not displayed");
 Click("Live");Click("Details");Click("Weapons / skills");
 Click("Iron mace");
 HoverPlot(.7f);

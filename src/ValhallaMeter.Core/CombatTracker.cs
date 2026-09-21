@@ -52,7 +52,7 @@ public sealed class CombatTracker
         if (Current != null && combat && DistantFromCurrent(Current, e)) Finish("Distant combat");
         if (Current == null && combat)
         {
-            Current = new Fight { Start = e.Time, LastCombat = e.Time, Coverage = Coverage,
+            Current = new Fight { Start = e.Time, LastCombat = e.Time, RecordedAtUnix = DateTimeOffset.UtcNow.ToUnixTimeSeconds(), Coverage = Coverage,
                 Title = !e.Target.Player && e.Target.Id != "unknown" ? e.Target.Name : "Combat" };
             foreach (var s in statuses.Values.Where(s => e.Time - s.Time >= 0 && e.Time - s.Time <= 2))
                 Current.Events.Add(new CombatEvent { Id = s.Id + ":seed", Time = e.Time, Kind = "status", Source = s.Source, Statuses = s.Statuses });

@@ -127,8 +127,15 @@ internal sealed class MeterWindow
         Text(new Rect(53, 72, 267, 29), targetLabel, 20, selectedTarget.Length > 0 ? Gold : Ink, bold: true);
         Button("target:next", new Rect(326, 73, 27, 27), ">", canSelectTarget, () => CycleTarget(1));
         int index = selection.Index(plugin.Tracker.History);
-        string position = !selection.IsLive ? (index >= 0 ? $"Fight {index + 1} / {plugin.Tracker.History.Count}" : "Pinned fight") : $"{plugin.Tracker.History.Count} saved fights";
+        string position = !selection.IsLive ? (index >= 0 ? $"Fight {index + 1} / {plugin.Tracker.History.Count}" : "Pinned fight") : $"{plugin.Tracker.History.Count} / 20 saved";
         Text(new Rect(365, 76, 137, 23), position, 11, Muted, TextAnchor.MiddleRight);
+        if (fight != null)
+        {
+            long nowUnix = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            string relative = FightClock.Relative(fight.RecordedAtUnix, nowUnix);
+            string absolute = DateTimeOffset.FromUnixTimeSeconds(fight.RecordedAtUnix).ToLocalTime().ToString("MMM d, yyyy h:mm tt");
+            Text(new Rect(270, 97, 232, 13), relative + " · " + absolute, 9, Muted, TextAnchor.MiddleRight);
+        }
         Stat(18, "GROUP DPS", fight == null ? "—" : (total / duration).ToString("N1"), Accent);
         Stat(183, "TOTAL DAMAGE", fight == null ? "—" : total.ToString("N0"), Ink);
         Stat(348, "DURATION", fight == null ? "—" : duration.ToString("0.0") + "s", Ink);

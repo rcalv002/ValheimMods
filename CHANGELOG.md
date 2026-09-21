@@ -1,3 +1,10 @@
+# 0.2.6 — dated fight history
+
+- Record a UTC wall-clock timestamp when each encounter begins and preserve it in saved snapshots and reports.
+- Show both relative age (`5m ago`, `12d ago`, `3mo ago`) and an absolute local date/time beside the selected fight.
+- Backfill pre-0.2.6 snapshots from their atomic export timestamps.
+- Expose the 20-fight history capacity in the overlay and retain regression coverage proving that only the newest 20 snapshots load.
+
 # 0.2.5 — verified packages and installations
 
 - Validate every packaged file against `SHA256SUMS.txt` before creating an archive or changing an installation.

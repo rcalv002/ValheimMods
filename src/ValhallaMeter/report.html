@@ -16,7 +16,7 @@
 const fight=__FIGHT_DATA__;
 const reportNow=__REPORT_NOW__;
 const $=id=>document.getElementById(id),fmt=(n,d=0)=>Number(n||0).toLocaleString(undefined,{maximumFractionDigits:d});
-const events=fight.Events||[],end=fight.Complete?fight.End:reportNow,duration=Math.max(1,end-fight.Start);
+const events=fight.Events||[],end=fight.Complete?fight.End:reportNow,duration=Math.max(1,end-fight.Start),recorded=fight.RecordedAtUnix?new Date(fight.RecordedAtUnix*1000):null;
 const node=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n;};
 function row(parent,cells){const tr=node('tr');for(const c of cells)tr.append(node('td',c));parent.append(tr);return tr;}
 function sum(items,key='Amount'){return items.reduce((n,e)=>n+(e[key]||0),0);}
@@ -24,7 +24,7 @@ function group(items,key,value=e=>e.Amount){const m=new Map;for(const e of items
 function option(select,value,label){const o=node('option',label);o.value=value;select.append(o);}
 const hits=events.filter(e=>e.Kind==='damage'),playerHits=hits.filter(e=>e.Source.Player),total=sum(playerHits),unknown=sum(hits.filter(e=>e.Source.Id==='unknown'));
 $('title').textContent=fight.Title;
-$('subtitle').textContent=`${fmt(duration,1)} seconds · ${fight.Complete?'Complete: '+fight.EndReason:'Live snapshot'} · ${fmt(events.length)} recorded events`;
+$('subtitle').textContent=`${recorded?recorded.toLocaleString()+' · ':''}${fmt(duration,1)} seconds · ${fight.Complete?'Complete: '+fight.EndReason:'Live snapshot'} · ${fmt(events.length)} recorded events`;
 $('coverage').textContent=fight.Coverage;
 const playerDeaths=events.filter(e=>e.Kind==='death'&&e.Target.Player).length,kills=events.filter(e=>e.Kind==='death'&&!e.Target.Player).length;
 for(const [title,value] of [['Group DPS',fmt(total/duration,1)],['Player damage',fmt(total)],['Unattributed damage',fmt(unknown)],['Deaths / kills',`${playerDeaths} / ${kills}`]]){const c=node('div');c.className='card';c.append(node('div',title));const n=node('div',value);n.className='number';c.append(n);$('cards').append(c);}

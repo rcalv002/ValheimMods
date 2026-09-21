@@ -55,6 +55,7 @@ public sealed class Fight
 {
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
     public string Title { get; set; } = "Combat";
+    public long RecordedAtUnix { get; set; }
     public double Start { get; set; }
     public double End { get; set; }
     public double LastCombat { get; set; }
@@ -67,6 +68,21 @@ public sealed class Fight
     public double LastZ { get; set; }
     public List<CombatEvent> Events { get; set; } = new List<CombatEvent>();
     public double Duration(double now) => Math.Max(1, (Complete ? End : Math.Max(LastCombat, now)) - Start);
+}
+
+public static class FightClock
+{
+    public static string Relative(long recordedAtUnix, long nowUnix)
+    {
+        long seconds = Math.Max(0, nowUnix - recordedAtUnix);
+        if (seconds < 5) return "now";
+        if (seconds < 60) return seconds + "s ago";
+        if (seconds < 3600) return seconds / 60 + "m ago";
+        if (seconds < 86400) return seconds / 3600 + "h ago";
+        if (seconds < 2592000) return seconds / 86400 + "d ago";
+        if (seconds < 31557600) return Math.Max(1, seconds / 2592000) + "mo ago";
+        return Math.Max(1, seconds / 31557600) + "y ago";
+    }
 }
 
 public sealed class PlayerRow

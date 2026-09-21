@@ -78,6 +78,16 @@ tests.Add(("Event and history limits bound memory", () => {
     var t=new CombatTracker { MaxEvents=3 };for(int i=0;i<90;i++)t.Add(Event(10+i*.1));
     Check(t.History.Count==20,"History bound");Check(t.History.All(f=>f.Events.Count<=3),"Event bound");
 }));
+tests.Add(("Fight age labels scale from seconds through years", () => {
+    long now=2000000000;
+    Check(FightClock.Relative(now,now)=="now","Current fight age");
+    Check(FightClock.Relative(now-45,now)=="45s ago","Seconds age");
+    Check(FightClock.Relative(now-5*60,now)=="5m ago","Minutes age");
+    Check(FightClock.Relative(now-20*3600,now)=="20h ago","Hours age");
+    Check(FightClock.Relative(now-12*86400,now)=="12d ago","Days age");
+    Check(FightClock.Relative(now-90*86400,now)=="3mo ago","Months age");
+    Check(FightClock.Relative(now-2*31557600,now)=="2y ago","Years age");
+}));
 tests.Add(("Thirty-minute fights segment before accepting the next hit", () => {
     var tracker=new CombatTracker{IdleSeconds=4000};tracker.Add(Event(10,10));tracker.Add(Event(1810,20));
     Check(tracker.History.Count==1&&tracker.History[0].EndReason=="30 minute segment","Long fight was not segmented");
@@ -190,6 +200,7 @@ tests.Add(("Previous fight archive restores the newest valid unique history", ()
         var loaded=FightArchive.Load(archiveRoot,current);
         Check(loaded.Error.Length==0,"Archive load failed: "+loaded.Error);Check(loaded.Skipped==1,"Malformed file was not reported");
         Check(loaded.Fights.Count==20,"History limit not enforced");Check(loaded.Fights[0].Title=="Fight 21"&&loaded.Fights[^1].Title=="Fight 2","History order is wrong");
+        Check(loaded.Fights.All(f=>f.RecordedAtUnix>0),"Legacy fight timestamps were not restored from export times");
         Check(!loaded.Fights.Any(f=>f.Id=="excluded"),"Current session was reloaded");
     }
     finally { Directory.Delete(archiveRoot,true); }

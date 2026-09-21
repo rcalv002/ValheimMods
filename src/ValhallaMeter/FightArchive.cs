@@ -54,6 +54,10 @@ internal static class FightArchive
                     if (file.Length <= 0 || file.Length > MaxFileBytes || loadedBytes + file.Length > MaxLoadedBytes)
                     { result.Skipped++; continue; }
                     var fight = JsonConvert.DeserializeObject<Fight>(File.ReadAllText(file.FullName), Settings);
+                    // 0.2.5 and older snapshots had no wall-clock field. Their atomic
+                    // export time is the closest reliable timestamp available.
+                    if (fight != null && fight.RecordedAtUnix <= 0)
+                        fight.RecordedAtUnix = new DateTimeOffset(file.LastWriteTimeUtc).ToUnixTimeSeconds();
                     if (!Valid(fight) || !ids.Add(fight!.Id)) { result.Skipped++; continue; }
                     result.Fights.Add(fight);
                     loadedBytes += file.Length;
@@ -69,6 +73,7 @@ internal static class FightArchive
     {
         if (fight == null || !fight.Complete || string.IsNullOrEmpty(fight.Id) || fight.Id.Length > 96 ||
             fight.Title == null || fight.Title.Length > 160 || fight.Coverage == null || fight.Coverage.Length > 500 ||
+            fight.RecordedAtUnix < 946684800 || fight.RecordedAtUnix > DateTimeOffset.UtcNow.AddDays(1).ToUnixTimeSeconds() ||
             !CombatEvent.Finite(fight.Start) || !CombatEvent.Finite(fight.End) || !CombatEvent.Finite(fight.LastCombat) ||
             fight.Start < 0 || fight.End < fight.Start || fight.LastCombat < fight.Start || fight.LastCombat > fight.End + 1 ||
             (fight.HasCombatPosition && (!CombatEvent.Finite(fight.LastX) || !CombatEvent.Finite(fight.LastY) || !CombatEvent.Finite(fight.LastZ))) ||
