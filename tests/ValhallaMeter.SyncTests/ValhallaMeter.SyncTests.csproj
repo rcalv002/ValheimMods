@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework></PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\ValhallaMeter.Core\ValhallaMeter.Core.csproj" />
+    <Reference Include="Newtonsoft.Json"><HintPath>$(GameManaged)\Newtonsoft.Json.dll</HintPath></Reference>
+    <Compile Include="..\..\src\ValhallaMeter\GroupSync.cs" Link="GroupSync.cs" />
+  </ItemGroup>
+</Project>

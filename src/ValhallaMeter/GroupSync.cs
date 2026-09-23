@@ -16,11 +16,10 @@ internal sealed class GroupSync
     private readonly Dictionary<long, double> members = new Dictionary<long, double>();
     private readonly Dictionary<long, (double Window, int Count)> rates = new Dictionary<long, (double, int)>();
     private readonly List<CombatEvent> outgoing = new List<CombatEvent>();
+    private readonly RelayHandshake handshake = new RelayHandshake();
     private ZRoutedRpc? rpc;
-    private double nextHello;
     private double lastWelcome = -100;
     private double nextFlush;
-    private int attempts;
     private long locallyPublishedEvents, locallyPublishedDamageEvents, dispatchedEventCopies;
     private long acceptedRemoteEvents, acceptedRemoteDamageEvents, duplicateRemoteEvents;
     private long rejectedBatches, rateLimitedBatches, staleRemoteEvents, droppedQueuedEvents, relayDisconnects;
@@ -43,7 +42,7 @@ internal sealed class GroupSync
         Connected = plugin.GroupEnabled && Connected,
         ReportingPeers = !plugin.GroupEnabled ? 0 : IsHost ? members.Count : Peers,
         TransportPeersVisible = ZNet.instance ? ZNet.instance.GetPeers().Count() : 0,
-        HelloAttempts = attempts,
+        HelloAttempts = handshake.Attempts,
         SecondsSinceWelcome = plugin.GroupEnabled && Connected ? Math.Max(0, Clock - lastWelcome) : (double?)null,
         QueuedEvents = outgoing.Count,
         LocallyPublishedEvents = locallyPublishedEvents,
@@ -67,7 +66,7 @@ internal sealed class GroupSync
             rpc = ZRoutedRpc.instance;
             droppedQueuedEvents += outgoing.Count;
             members.Clear(); rates.Clear(); outgoing.Clear();
-            Connected = false; Peers = 0; attempts = 0; nextHello = Clock + 3; lastWelcome = -100;
+            Connected = false; Peers = 0; handshake.Reset(Clock); lastWelcome = -100;
             Capture.ClearFallbacks();
             if (rpc != null)
             {
@@ -83,7 +82,7 @@ internal sealed class GroupSync
                 Connected = false; Peers = 0;
                 droppedQueuedEvents += outgoing.Count;
                 outgoing.Clear();
-                members.Clear(); rates.Clear(); attempts = 0; nextHello = Clock + 3;
+                members.Clear(); rates.Clear(); handshake.Reset(Clock);
             }
             return;
         }
@@ -93,20 +92,13 @@ internal sealed class GroupSync
         }
         else
         {
+            if (handshake.ObserveHost(HostId, Clock) && Connected) DisconnectRelay("Relay host changed; partial coverage");
             if (Connected && Clock - lastWelcome > 30)
+                DisconnectRelay("Local observations after relay disconnected; partial coverage");
+            if (handshake.ShouldHello(Clock))
             {
-                Connected = false;
-                relayDisconnects++;
-                plugin.Tracker.ResetSession();
-                plugin.Tracker.Coverage = "Local observations after relay disconnected; partial coverage";
-                droppedQueuedEvents += outgoing.Count;
-                outgoing.Clear();
-            }
-            if (HostId != 0 && Clock >= nextHello && (Connected || attempts < 3))
-            {
-                rpc.InvokeRoutedRPC(HostId, HelloRpc, 1);
-                nextHello = Clock + 10;
-                attempts++;
+                handshake.HelloSent(Clock);
+                rpc.InvokeRoutedRPC(handshake.HostId, HelloRpc, 1);
             }
         }
         if (Clock >= nextFlush)
@@ -114,6 +106,17 @@ internal sealed class GroupSync
             nextFlush = Clock + 0.1;
             Flush();
         }
+    }
+
+    private void DisconnectRelay(string coverage)
+    {
+        Connected = false; Peers = 0;
+        relayDisconnects++;
+        plugin.Tracker.ResetSession();
+        plugin.Tracker.Coverage = coverage;
+        droppedQueuedEvents += outgoing.Count;
+        outgoing.Clear();
+        Capture.ClearFallbacks();
     }
 
     private void Hello(long sender, int version)
@@ -127,6 +130,7 @@ internal sealed class GroupSync
     private void Welcome(long sender, int version, int peers)
     {
         if (IsHost || !plugin.GroupEnabled || version != 1 || sender != HostId || sender == 0) return;
+        if (handshake.ObserveHost(sender, Clock) && Connected) DisconnectRelay("Relay host changed; partial coverage");
         if (!Connected)
         {
             Capture.ClearFallbacks();
@@ -175,7 +179,7 @@ internal sealed class GroupSync
     private void Receive(long sender, string json)
     {
         if (!plugin.GroupEnabled || json == null || json.Length > 120000) { rejectedBatches++; return; }
-        if (IsHost ? !members.ContainsKey(sender) : (!Connected || sender != HostId)) { rejectedBatches++; return; }
+        if (IsHost ? !members.ContainsKey(sender) : (!Connected || sender != HostId || sender != handshake.HostId)) { rejectedBatches++; return; }
         if (!rates.TryGetValue(sender, out var rate) || Clock - rate.Window >= 1) rate = (Clock, 0);
         if (++rate.Count > 30) { rates[sender] = rate; rateLimitedBatches++; return; }
         rates[sender] = rate;

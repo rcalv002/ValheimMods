@@ -8,6 +8,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Build failed.' }
     dotnet run --project 'tests\ValhallaMeter.Tests' -c Release --no-launch-profile -- $ValheimPath
     if ($LASTEXITCODE -ne 0) { throw 'Validation failed.' }
+    dotnet run --project 'tests\ValhallaMeter.SyncTests' -c Release --no-launch-profile
+    if ($LASTEXITCODE -ne 0) { throw 'Relay validation failed.' }
     dotnet run --project 'tests\ValhallaMeter.OverlayTests' -c Release --no-launch-profile
     if ($LASTEXITCODE -ne 0) { throw 'Overlay validation failed.' }
     $node = Get-Command node -ErrorAction SilentlyContinue

@@ -21,6 +21,23 @@ tests.Add(("Duplicate network delivery counts a hit once", () => {
     var t = new CombatTracker(); var e = Event(10, 75); t.Add(e); Check(!t.Add(e), "Duplicate accepted");
     Equal(CombatTracker.Rows(t.Current!)[0].Damage, 75, "Damage");
 }));
+tests.Add(("Relay keeps retrying a late host and resets after host changes", () => {
+    var handshake=new RelayHandshake();handshake.Reset(0);
+    Check(!handshake.ShouldHello(100),"Hello sent without a host");
+    Check(handshake.ObserveHost(11,0),"First host not observed");
+    Check(!handshake.ShouldHello(2.9)&&handshake.ShouldHello(3),"Initial hello delay wrong");
+    for(int i=0;i<6;i++)
+    {
+        double now=3+i*10;
+        Check(handshake.ShouldHello(now),"Retry stopped before late host appeared");
+        handshake.HelloSent(now);
+        Check(!handshake.ShouldHello(now+9.9),"Hello retry ran too early");
+    }
+    Check(handshake.Attempts==6,"Hello attempts stopped at the old three-try cap");
+    Check(handshake.ObserveHost(22,60)&&handshake.Attempts==0&&!handshake.ShouldHello(62.9)&&handshake.ShouldHello(63),
+        "New host did not restart handshake");
+    Check(handshake.ObserveHost(0,64)&&!handshake.ShouldHello(100),"Missing host still received hello");
+}));
 tests.Add(("Group DPS uses one encounter duration", () => {
     var t = new CombatTracker { IdleSeconds = 20 }; t.Add(Event(10, 100)); t.Add(Event(20, 40, source: b)); t.Finish("test");
     var f = t.History[0]; var rows = CombatTracker.Rows(f); Equal(f.Duration(999), 10, "Duration");

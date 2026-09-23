@@ -1,3 +1,10 @@
+# 0.2.12 — relay reconnection
+
+- Retry the client handshake every 10 seconds until a modded host responds, including after the former three-attempt limit and after a relay timeout.
+- Detect host changes, close the previous report segment, and negotiate with the new host before accepting its events.
+- Resume local capture while disconnected and renegotiate after group sync is toggled back on.
+- Add a deterministic harness that exercises the production relay code through late-host, timeout, host-switch, and toggle scenarios.
+
 # 0.2.11 — local multiplayer diagnostics
 
 - Add Export diagnostics to the Sources tab, available even before the first fight.
