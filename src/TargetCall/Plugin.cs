@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace TargetCall;
 
-[BepInPlugin("local.targetcall", "Target Call", "0.2.0")]
+[BepInPlugin("local.targetcall", "Target Call", "0.2.1")]
 public sealed class Plugin : BaseUnityPlugin
 {
     private static Plugin? instance;
@@ -53,7 +53,7 @@ public sealed class Plugin : BaseUnityPlugin
             new ConfigDescription("Maximum distance for the on-screen target marker.", new AcceptableValueRange<float>(15f, 150f)));
         sync = new TargetSync();
         leaderSync = new TargetSync("TargetCall_Leader");
-        Logger.LogInfo("Target Call 0.2.0 loaded. C attacks; Shift+C assists; Alt+C marks privately; Ctrl+C designates a commander; Z takes the shared target.");
+        Logger.LogInfo("Target Call 0.2.1 loaded. C attacks; Shift+C assists; Alt+C marks privately; Ctrl+C designates a commander; Z takes the shared target.");
     }
 
     private void Update()
@@ -271,20 +271,27 @@ public sealed class Plugin : BaseUnityPlugin
             Camera camera = Utils.GetMainCamera();
             if (!camera) return;
             EnsureStyle();
-            if (called)
-                DrawMarker(camera, called, called.IsPlayer() ? defendIcon! : attackIcon!,
-                    sync.State.Focused ? new Color32(246, 194, 88, 255) :
-                    called.IsPlayer() ? new Color32(89, 216, 220, 255) : new Color32(244, 113, 93, 255), 0);
-            if (commander)
-                DrawMarker(camera, commander, leaderIcon!, new Color32(249, 209, 82, 255),
-                    called && called == commander ? 1 : 0);
-            if (privateTarget)
+            Matrix4x4 oldMatrix = GUI.matrix;
+            try
             {
-                int stack = (called && called == privateTarget ? 1 : 0) +
-                    (commander && commander == privateTarget ? 1 : 0);
-                DrawMarker(camera, privateTarget, personalIcon!, new Color32(231, 242, 248, 255),
-                    stack);
+                // The camera returns screen pixels; an inherited IMGUI scale would shift the icon.
+                GUI.matrix = Matrix4x4.identity;
+                if (called)
+                    DrawMarker(camera, called, called.IsPlayer() ? defendIcon! : attackIcon!,
+                        sync.State.Focused ? new Color32(246, 194, 88, 255) :
+                        called.IsPlayer() ? new Color32(89, 216, 220, 255) : new Color32(244, 113, 93, 255), 0);
+                if (commander)
+                    DrawMarker(camera, commander, leaderIcon!, new Color32(249, 209, 82, 255),
+                        called && called == commander ? 1 : 0);
+                if (privateTarget)
+                {
+                    int stack = (called && called == privateTarget ? 1 : 0) +
+                        (commander && commander == privateTarget ? 1 : 0);
+                    DrawMarker(camera, privateTarget, personalIcon!, new Color32(231, 242, 248, 255),
+                        stack);
+                }
             }
+            finally { GUI.matrix = oldMatrix; }
         });
     }
 
@@ -292,11 +299,16 @@ public sealed class Plugin : BaseUnityPlugin
         Color accent, int stack)
     {
         if (Vector3.Distance(Player.m_localPlayer.transform.position, creature.transform.position) > markerDistance.Value) return;
-        Vector3 screen = camera.WorldToScreenPoint(creature.GetTopPoint() + Vector3.up * 0.25f);
+        bool isPlayer = creature.IsPlayer();
+        // Match EnemyHud's projection, including cameras rendering below screen resolution.
+        Vector3 worldPoint = isPlayer ? creature.GetHeadPoint() + Vector3.up * 0.3f :
+            creature.GetTopPoint() + Vector3.up * 0.25f;
+        Vector3 screen = camera.WorldToScreenPointScaled(worldPoint);
         if (screen.z <= 0 || screen.x < 24 || screen.x > Screen.width - 24 ||
             screen.y < 0 || screen.y > Screen.height) return;
         float x = screen.x;
-        float y = Screen.height - screen.y - 16 + stack * 52;
+        // Player nameplates sit above the projected head; keep their icons above the name.
+        float y = Screen.height - screen.y + (isPlayer ? -96 - stack * 52 : -16 + stack * 52);
         if (y < 2 || y + 50 > Screen.height) return;
         Color old = GUI.color;
         try
