@@ -5,7 +5,7 @@ using System.Linq;
 namespace TargetCall;
 
 // The server orders one shared call. The target's ZDO identity, not its current
-// owner or position, lets each client follow the same moving creature.
+// owner or position, lets each client follow the same moving target.
 internal sealed class TargetSync
 {
     private const string HelloRpc = "TargetCall_Hello_v1";
