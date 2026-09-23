@@ -2,6 +2,8 @@
 
 An experimental Valheim combat meter inspired by arcdps. This is an independent C# mod; it does not load, modify, or redistribute arcdps. Version 0.2.14 is built against the locally installed Steam build 25390630 and BepInExPack Valheim 5.4.2350.
 
+This repository also contains [Target Call](src/TargetCall/README.md), a separate plugin for shared moving-creature markers. It installs alongside the meter and does not change its combat recording.
+
 ## What is implemented
 
 - Dark in-game panel with aligned stats, damage bars, paging, and configurable size. **F7** shows/hides it. With game menus closed, **F8** enables clicking and dragging; **F8** again returns to gameplay. Interaction suspends movement/camera controls, but does not pause multiplayer combat. Esc, hiding the meter, opening a game menu, or losing focus also exits interaction.
