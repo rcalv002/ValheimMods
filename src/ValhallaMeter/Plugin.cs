@@ -10,7 +10,7 @@ using ValhallaMeter.Core;
 namespace ValhallaMeter;
 
 [DefaultExecutionOrder(-10000)]
-[BepInPlugin("local.valhallameter", "Valhalla Meter", "0.2.10")]
+[BepInPlugin("local.valhallameter", "Valhalla Meter", "0.2.11")]
 public sealed class Plugin : BaseUnityPlugin
 {
     internal static Plugin? Instance;
@@ -73,7 +73,7 @@ public sealed class Plugin : BaseUnityPlugin
         {
             harmony = new Harmony("local.valhallameter");
             harmony.PatchAll(typeof(Plugin).Assembly);
-            Logger.LogInfo("Valhalla Meter 0.2.10 loaded. F7 shows/hides; F8 enables interaction. Logs: " + logs.Directory);
+            Logger.LogInfo("Valhalla Meter 0.2.11 loaded. F7 shows/hides; F8 enables interaction. Logs: " + logs.Directory);
         }
         catch (Exception ex)
         {
@@ -146,6 +146,22 @@ public sealed class Plugin : BaseUnityPlugin
         return true;
     }
     internal void Export(Fight fight) { logs.Export(fight, Now); window.Notice = "Export queued: BepInEx/ValhallaMeter/logs"; }
+    internal void ExportDiagnostics(Fight? selected)
+    {
+        var snapshot = new DiagnosticSnapshot
+        {
+            ModVersion = "0.2.11",
+            CreatedAtUnix = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+            ActiveFights = Tracker.Active.Count,
+            SavedFights = Tracker.History.Count,
+            Relay = sync.Diagnostics(),
+            SelectedFight = selected == null ? null : FightDiagnostics.Summarize(selected, Now)
+        };
+        string? path = logs.ExportDiagnostics(snapshot);
+        if (path == null) { SetIssue(logs.Error); return; }
+        Logger.LogInfo("Local diagnostics queued: " + path);
+        window.Notice = "Diagnostics queued in BepInEx/ValhallaMeter/logs";
+    }
     internal void SetIssue(string message)
     {
         Issue = message;

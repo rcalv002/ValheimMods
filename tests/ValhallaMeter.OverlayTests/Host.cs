@@ -111,6 +111,8 @@ namespace ValhallaMeter
         public readonly CombatTracker Tracker=new();public readonly Setting<float> WindowX=new(30),WindowY=new(30),WindowScale=new(1),WindowOpacity=new(.96f);
         public readonly Setting<bool> WindowLocked=new(false);
         public bool Interacting=true;public string Issue="";public string Coverage=>"Local capture";public static double Now=30;
-        public int Exports;public void Export(Fight fight)=>Exports++;
+        public int Exports,DiagnosticExports;public Fight? LastDiagnosticFight;
+        public void Export(Fight fight)=>Exports++;
+        public void ExportDiagnostics(Fight? fight){DiagnosticExports++;LastDiagnosticFight=fight;}
     }
 }

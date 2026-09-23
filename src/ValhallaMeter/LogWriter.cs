@@ -30,7 +30,7 @@ internal sealed class LogWriter : IDisposable
         eventsPath = Path.Combine(Directory, "events.jsonl");
         worker = Task.Run(WriteLoop);
     }
-    public void Event(CombatEvent e) => Enqueue(eventsPath, JsonConvert.SerializeObject(e, Settings) + Environment.NewLine, true);
+    public void Event(CombatEvent e) { Enqueue(eventsPath, JsonConvert.SerializeObject(e, Settings) + Environment.NewLine, true); }
     public void Export(Fight fight, double now)
     {
         string json = JsonConvert.SerializeObject(fight, Settings);
@@ -40,10 +40,18 @@ internal sealed class LogWriter : IDisposable
         Enqueue(prefix + ".json", json, false);
         Enqueue(prefix + ".html", report, false);
     }
-    private void Enqueue(string path, string text, bool append)
+    public string? ExportDiagnostics(DiagnosticSnapshot snapshot)
     {
-        if (!queue.IsAddingCompleted && !queue.TryAdd((path, text, append)))
-            error = "Log queue full: some events were not saved";
+        string path = Path.Combine(Directory, "diagnostic-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss") + "-" +
+            Guid.NewGuid().ToString("N").Substring(0, 8) + ".json");
+        string json = JsonConvert.SerializeObject(snapshot, Formatting.Indented, Settings);
+        return Enqueue(path, json, false) ? path : null;
+    }
+    private bool Enqueue(string path, string text, bool append)
+    {
+        if (!queue.IsAddingCompleted && queue.TryAdd((path, text, append))) return true;
+        error = "Log queue full: some events were not saved";
+        return false;
     }
     private void WriteLoop()
     {

@@ -57,6 +57,41 @@ tests.Add(("Fight sources separate owner measurement, fallback estimates and rel
     Check(summary.OwnerHits==2&&summary.FallbackHits==1&&summary.UnspecifiedHits==1&&summary.RelayedHits==1,"Source hit counts");
     var invalid=Event(15);invalid.CaptureMode="guessed";Check(!invalid.Valid(),"Unrecognized capture mode was accepted");
 }));
+tests.Add(("Diagnostic fight summary gives coverage counts without identities or positions", () => {
+    var named=new Actor{Id="private-player-id",Name="Private Player",Player=true};
+    var target=new Actor{Id="private-enemy-id",Name="Private Enemy"};
+    var fight=new Fight{Start=10,LastCombat=12,End=12,Complete=true,RecordedAtUnix=123456};
+    var owner=Event(10,40,source:named,target:target);owner.CaptureMode="owner";owner.HasPosition=true;owner.X=4321;fight.Events.Add(owner);
+    var fallback=Event(11,10,source:named,target:target);fallback.CaptureMode="fallback";fallback.Relayed=true;fight.Events.Add(fallback);
+    fight.Events.Add(Event(12,15,source:target,target:named));
+    var summary=FightDiagnostics.Summarize(fight,12);
+    Check(summary.EventCount==3&&summary.ObservedPlayers==1&&summary.EventKinds["damage"]==3,"Diagnostic counts wrong");
+    Equal(summary.OutgoingPlayerDamage,50,"Outgoing diagnostic damage");Equal(summary.IncomingPlayerDamage,15,"Incoming diagnostic damage");
+    Equal(summary.Sources.OwnerDamage,40,"Owner diagnostic damage");Equal(summary.Sources.FallbackDamage,10,"Fallback diagnostic damage");
+    var snapshot=new DiagnosticSnapshot{ModVersion="test",SelectedFight=summary,Relay=new RelayDiagnostics{AcceptedRemoteEvents=2}};
+    string json=Newtonsoft.Json.JsonConvert.SerializeObject(snapshot);
+    Check(!json.Contains("Private")&&!json.Contains("private-")&&!json.Contains("4321"),"Diagnostic leaked identity or coordinates");
+    Check(json.Contains("AcceptedRemoteEvents")&&json.Contains("SelectedFight"),"Diagnostic lost relay or fight summary");
+}));
+tests.Add(("Diagnostic export writes a private local JSON snapshot", () => {
+    string tempRoot=Path.Combine(Path.GetTempPath(),"ValhallaMeterDiagnostic-"+Guid.NewGuid().ToString("N"));
+    try
+    {
+        var writer=new LogWriter(tempRoot);
+        string? path=writer.ExportDiagnostics(new DiagnosticSnapshot{ModVersion="test",Relay=new RelayDiagnostics{RejectedBatches=3}});
+        writer.Dispose();
+        Check(path!=null&&File.Exists(path),"Diagnostic file was not written");
+        string saved=File.ReadAllText(path!);
+        Check(saved.Contains("\"RejectedBatches\": 3")&&saved.Contains("\"SchemaVersion\": 1"),"Diagnostic contents were lost");
+        Check(!saved.Contains("player:")&&!saved.Contains("entity:"),"Diagnostic contains event identities");
+    }
+    finally
+    {
+        string tempPrefix=Path.GetFullPath(Path.GetTempPath()).TrimEnd(Path.DirectorySeparatorChar)+Path.DirectorySeparatorChar;
+        if(Directory.Exists(tempRoot)&&Path.GetFullPath(tempRoot).StartsWith(tempPrefix,StringComparison.OrdinalIgnoreCase))
+            Directory.Delete(tempRoot,true);
+    }
+}));
 tests.Add(("Immune player attacks are retained as zero-damage attempts", () => {
     var tracker=new CombatTracker();var immune=Event(10,0);immune.Result="Immune";tracker.Add(immune);
     Check(tracker.Current!=null,"Immune attempt did not start combat");var row=CombatTracker.Rows(tracker.Current!).Single();

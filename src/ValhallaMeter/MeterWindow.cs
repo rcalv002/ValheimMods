@@ -166,7 +166,7 @@ internal sealed class MeterWindow
             Button("tab:" + i, new Rect(18 + i * tabWidth, 214, tabWidth, 28), Tabs[i], true, () => { browserOpen = false; tab = value; if (value >= 7) selectedTarget = ""; page = 0; }, !browserOpen && tab == i, true);
         }
         if (browserOpen) DrawFightBrowser();
-        else if (fight == null)
+        else if (fight == null && tab != 8)
         {
             pageCount = 1;
             Text(new Rect(30, 296, 460, 30), "Your next fight starts here.", 17, Ink, TextAnchor.MiddleCenter);
@@ -216,9 +216,11 @@ internal sealed class MeterWindow
         SourceRow(337, "Displayed-number estimate", coverage.FallbackDamage, coverage.FallbackHits);
         SourceRow(389, "Unspecified / older report", coverage.UnspecifiedDamage, coverage.UnspecifiedHits);
         Text(new Rect(22, 448, 478, 21), $"Relay transport: {coverage.RelayedDamage:N0} damage · {coverage.RelayedHits} hits", 11, Accent);
-        Text(new Rect(22, 476, 478, 20), "Relay describes delivery; owner/fallback describes measurement.", 10, Muted);
-        Text(new Rect(22, 500, 478, 20), "These totals cannot reveal hits missed by unmodded owners.", 10, Muted);
-        Text(new Rect(22, 524, 478, 18), fight!.Coverage, 9, Muted);
+        Text(new Rect(22, 476, 478, 20), "Relay describes delivery; missing hits cannot be inferred.", 10, Muted);
+        Button("diagnostics", new Rect(18, 504, 184, 30), "Export diagnostics", true,
+            () => plugin.ExportDiagnostics(fight));
+        Text(new Rect(213, 505, 285, 29), "Local counts · no player names or raw events", 9, Muted);
+        Text(new Rect(22, 536, 478, 14), "Use this file to investigate relay gaps and capture coverage.", 9, Muted);
     }
     private void SourceRow(float y, string label, double amount, int hits)
     {

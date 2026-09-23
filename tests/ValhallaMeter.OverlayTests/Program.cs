@@ -109,7 +109,21 @@ browserPlugin.Tracker.Add(new CombatEvent{Id="source:owner",Time=1001,Amount=10,
 browserPlugin.Tracker.Finish("test");BrowserDraw();BrowserClick("Live");BrowserClick("Sources");
 Check(Has("Owner-resolved")&&Has("Displayed-number estimate")&&Has("Unspecified / older report")&&
     Has("Relay transport: 10 damage · 1 hits"),"Fight sources did not distinguish measurement and relay delivery");
+BrowserClick("Export diagnostics");Check(browserPlugin.DiagnosticExports==1&&browserPlugin.LastDiagnosticFight!=null,
+    "Selected-fight diagnostics were not exported");
 File.WriteAllText(Path.Combine(root,"artifacts","sources-preview.svg"),GUI.Svg());
+var emptyPlugin=new Plugin();var emptyWindow=new MeterWindow(emptyPlugin);
+void EmptyDraw(){emptyWindow.Refresh();GUI.Commands.Clear();emptyWindow.Draw();}
+void EmptyClick(string label)
+{
+    var r=GUI.Commands.Single(c=>c.Text==label).Area;
+    ZInput.pointerPosition=new Vector3(r.x+r.width/2,Screen.height-r.y-r.height/2);
+    ZInput.Down=true;ZInput.Held=true;emptyWindow.HandleInput();
+    ZInput.Down=false;ZInput.Held=false;ZInput.Up=true;emptyWindow.HandleInput();ZInput.Up=false;EmptyDraw();
+}
+EmptyDraw();EmptyClick("Sources");Check(Has("Export diagnostics"),"Diagnostics unavailable before the first fight");
+EmptyClick("Export diagnostics");Check(emptyPlugin.DiagnosticExports==1&&emptyPlugin.LastDiagnosticFight==null,
+    "Empty-session diagnostics did not export");
 var concurrentPlugin=new Plugin();
 var bear=new CombatEvent{Id="concurrent:bear",Time=2000,Amount=30,Source=actor,Target=new Actor{Id="entity:bear",Name="Bear"},HasPosition=true,X=0};
 var boar=new CombatEvent{Id="concurrent:boar",Time=2001,Amount=20,Source=actor,Target=new Actor{Id="entity:boar",Name="Boar"},HasPosition=true,X=200};

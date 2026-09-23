@@ -5,5 +5,8 @@
     <Reference Include="Mono.Cecil"><HintPath>$(BepInExPath)\core\Mono.Cecil.dll</HintPath></Reference>
     <Reference Include="Newtonsoft.Json"><HintPath>$(GameManaged)\Newtonsoft.Json.dll</HintPath></Reference>
     <Compile Include="..\..\src\ValhallaMeter\FightArchive.cs" Link="FightArchive.cs" />
+    <Compile Include="..\..\src\ValhallaMeter\LogWriter.cs" Link="LogWriter.cs" />
+    <Compile Include="..\..\src\ValhallaMeter\Report.cs" Link="Report.cs" />
+    <EmbeddedResource Include="..\..\src\ValhallaMeter\report.html" LogicalName="ValhallaMeter.report.html" />
   </ItemGroup>
 </Project>

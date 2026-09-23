@@ -1,3 +1,11 @@
+# 0.2.11 — local multiplayer diagnostics
+
+- Add Export diagnostics to the Sources tab, available even before the first fight.
+- Save a local JSON snapshot with relay state, reporting-peer count, local/remote damage-event counts, queue and dispatch counters, rejected/rate-limited batches, stale/duplicate events, dropped queue entries, and disconnects.
+- Include aggregate event kinds and owner/fallback/relay damage for the displayed fight without exporting player identities, coordinates, or raw events.
+- State explicitly that dispatched RPCs are not acknowledged and counters cannot measure missing hits from unmodded owners.
+- Clear stale relay state when group sync is disabled so local damage fallback resumes immediately.
+
 # 0.2.10 — fight timeline markers
 
 - Mark recorded player deaths, boss kills, and major damage spikes on the in-game DPS plot and offline report chart.
