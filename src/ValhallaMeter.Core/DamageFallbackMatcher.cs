@@ -61,7 +61,7 @@ public sealed class DamageFallbackMatcher
         if (amount <= 0) return null;
         return new CombatEvent
         {
-            Kind = "damage", Time = time, Amount = amount, Source = match.Source, Target = match.Target,
+            Kind = "damage", CaptureMode = "fallback", Time = time, Amount = amount, Source = match.Source, Target = match.Target,
             Ability = match.Ability, Weapon = match.Weapon, Result = "Observed", Correlation = match.Correlation,
             HasPosition = true, X = x, Y = y, Z = z
         };

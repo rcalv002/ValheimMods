@@ -44,6 +44,19 @@ tests.Add(("Unattributed damage is never assigned to the local player", () => {
     Equal(CombatTracker.Rows(t.Current!)[0].Damage, 100, "Player damage");
     Equal(t.Current!.Events.Where(e=>e.Source.Id=="unknown").Sum(e=>e.Amount), 50, "Unknown bucket");
 }));
+tests.Add(("Fight sources separate owner measurement, fallback estimates and relay transport", () => {
+    var tracker=new CombatTracker();
+    var owner=Event(10,50);owner.CaptureMode="owner";tracker.Add(owner);
+    var fallback=Event(11,20);fallback.CaptureMode="fallback";tracker.Add(fallback);
+    var legacy=Event(12,10);tracker.Add(legacy);
+    var remote=Event(13,30);remote.CaptureMode="owner";remote.Relayed=true;tracker.Add(remote);
+    var incoming=Event(14,40,source:enemy,target:a);incoming.CaptureMode="owner";tracker.Add(incoming);
+    var summary=FightCoverage.Summarize(tracker.Current!);
+    Equal(summary.OwnerDamage,80,"Owner-resolved damage");Equal(summary.FallbackDamage,20,"Fallback damage");
+    Equal(summary.UnspecifiedDamage,10,"Legacy damage");Equal(summary.RelayedDamage,30,"Relayed player damage");
+    Check(summary.OwnerHits==2&&summary.FallbackHits==1&&summary.UnspecifiedHits==1&&summary.RelayedHits==1,"Source hit counts");
+    var invalid=Event(15);invalid.CaptureMode="guessed";Check(!invalid.Valid(),"Unrecognized capture mode was accepted");
+}));
 tests.Add(("Immune player attacks are retained as zero-damage attempts", () => {
     var tracker=new CombatTracker();var immune=Event(10,0);immune.Result="Immune";tracker.Add(immune);
     Check(tracker.Current!=null,"Immune attempt did not start combat");var row=CombatTracker.Rows(tracker.Current!).Single();
@@ -107,6 +120,7 @@ tests.Add(("Remote-owner damage text resolves a pending local attack", () => {
     var hit=matcher.Match(10.2,1.1,2,3,35)!;
     Equal(hit.Amount,35,"Fallback damage");Check(hit.Source==a&&hit.Target==enemy,"Actors changed");
     Check(hit.Weapon=="Ancient Bark Spear"&&hit.Correlation=="bear-hit","Attack metadata was lost");
+    Check(hit.CaptureMode=="fallback","Estimate was not labeled");
     Check(matcher.Count==0,"Matched hit was retained");
 }));
 tests.Add(("Damage fallback expires and caps an overkill by observed health", () => {
@@ -274,7 +288,7 @@ string root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../
 string game = args.FirstOrDefault() ?? @"C:\Program Files (x86)\Steam\steamapps\common\Valheim";
 tests.Add(("Offline report exposes selectable chart series and hit results", () => {
     string template=File.ReadAllText(Path.Combine(root,"src","ValhallaMeter","report.html"));
-    foreach(string marker in new[]{"id=\"chartPlayer\"","id=\"chartTarget\"","id=\"chartSeries\"","id=\"charttip\"","id=\"results\"","'Result'"})
+    foreach(string marker in new[]{"id=\"chartPlayer\"","id=\"chartTarget\"","id=\"chartSeries\"","id=\"charttip\"","id=\"results\"","id=\"sources\"","'Capture'","'Delivery'","'Result'"})
         Check(template.Contains(marker),"Missing report control: "+marker);
     Check(template.Contains("textContent")&&!template.Contains("innerHTML"),"Report bypasses safe text rendering");
 }));

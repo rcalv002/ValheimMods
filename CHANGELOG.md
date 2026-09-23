@@ -1,3 +1,11 @@
+# 0.2.8 — per-fight damage sources
+
+- Mark outgoing damage as owner-resolved, displayed-number fallback, or unspecified, while recording relay delivery separately.
+- Add a Sources tab for the selected fight and show its recorded source mix in the header, including historical fights.
+- Add the same source summary and capture/delivery columns to offline reports and CSV exports.
+- Preserve older snapshots as unspecified instead of inferring their measurement source.
+- Clarify that these figures describe recorded damage and cannot measure hits missed by unmodded owners.
+
 # 0.2.7 — fight browser
 
 - Add a Fights button beside Older/Newer that lists up to 20 retained fights with age, local date/time, target, duration, and group damage.

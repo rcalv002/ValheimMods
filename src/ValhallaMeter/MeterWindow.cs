@@ -27,10 +27,11 @@ internal sealed class MeterWindow
     private string selectedTarget = "";
     private string selectedBreakdown = "";
     private double duration = 1, total, unknown;
+    private FightCoverage coverage = new FightCoverage();
     private bool dragging;
     private Vector2 dragOffset;
     public string Notice = "";
-    private static readonly string[] Tabs = { "Damage", "Taken", "Healing", "Shields", "Details", "Buffs", "Deaths", "Compare" };
+    private static readonly string[] Tabs = { "Damage", "Taken", "Healing", "Shields", "Details", "Buffs", "Deaths", "Compare", "Sources" };
     private static readonly Color Background = new Color32(15, 21, 28, 246);
     private static readonly Color Surface = new Color32(25, 34, 43, 255);
     private static readonly Color Border = new Color32(48, 63, 74, 255);
@@ -55,12 +56,13 @@ internal sealed class MeterWindow
         Fight? next = selection.Resolve(plugin.Tracker.Current, plugin.Tracker.History);
         if (next?.Id != fight?.Id) { page = 0; selectedTarget = ""; selectedBreakdown = ""; Notice = ""; }
         fight = next;
-        if (fight == null) { rows.Clear(); enemyTargets.Clear(); total = unknown = 0; return; }
+        if (fight == null) { rows.Clear(); enemyTargets.Clear(); total = unknown = 0; coverage = new FightCoverage(); return; }
         enemyTargets = CombatTracker.Targets(fight);
         if (selectedTarget.Length > 0 && !enemyTargets.Any(t => t.Id == selectedTarget)) selectedTarget = "";
         duration = CombatTracker.Duration(fight, Plugin.Now, selectedTarget);
         rows = CombatTracker.Rows(fight, selectedTarget);
         total = rows.Sum(r => r.Damage);
+        coverage = FightCoverage.Summarize(fight);
         unknown = fight.Events.Where(e => e.Kind == "damage" && e.Source.Id == "unknown" &&
             (selectedTarget.Length == 0 || e.Target.Id == selectedTarget)).Sum(e => e.Amount);
         if (!rows.Any(r => r.Actor.Id == selected)) selected = rows.FirstOrDefault()?.Actor.Id ?? "";
@@ -123,7 +125,7 @@ internal sealed class MeterWindow
         if (plugin.Interacting) Button("window:lock", new Rect(410, 12, 92, 24), plugin.WindowLocked.Value ? "Unlock panel" : "Lock panel", true,
             () => plugin.WindowLocked.Value = !plugin.WindowLocked.Value, plugin.WindowLocked.Value);
         Line(44);
-        Text(new Rect(18, 50, 350, 18), plugin.Coverage, 10, Muted);
+        Text(new Rect(18, 50, 365, 18), fight == null ? plugin.Coverage : SourceLabel(), 10, Muted);
         string mode = !selection.IsLive ? "HISTORY" : plugin.Tracker.Current != null ? "LIVE" : "LATEST";
         Text(new Rect(396, 50, 106, 18), mode, 11, selection.IsLive ? Accent : Gold, TextAnchor.MiddleRight, true);
         bool canSelectTarget = enemyTargets.Count > 1;
@@ -159,7 +161,7 @@ internal sealed class MeterWindow
         for (int i = 0; i < Tabs.Length; i++)
         {
             int value = i; float tabWidth = 484f / Tabs.Length;
-            Button("tab:" + i, new Rect(18 + i * tabWidth, 214, tabWidth, 28), Tabs[i], true, () => { browserOpen = false; tab = value; if (value == 7) selectedTarget = ""; page = 0; }, !browserOpen && tab == i, true);
+            Button("tab:" + i, new Rect(18 + i * tabWidth, 214, tabWidth, 28), Tabs[i], true, () => { browserOpen = false; tab = value; if (value >= 7) selectedTarget = ""; page = 0; }, !browserOpen && tab == i, true);
         }
         if (browserOpen) DrawFightBrowser();
         else if (fight == null)
@@ -172,7 +174,8 @@ internal sealed class MeterWindow
         else if (tab == 4) DrawDetails();
         else if (tab == 5) DrawBuffs();
         else if (tab == 6) DrawDeaths();
-        else DrawComparison();
+        else if (tab == 7) DrawComparison();
+        else DrawSources();
         Button("page:prev", new Rect(18, 552, 31, 23), "<", browserOpen ? browserPage > 0 : page > 0,
             () => { if (browserOpen) browserPage--; else page--; });
         Text(new Rect(54, 552, 110, 23), browserOpen ? $"{browserPage + 1} / {BrowserPageCount}" : $"{page + 1} / {pageCount}", 10, Muted);
@@ -193,6 +196,35 @@ internal sealed class MeterWindow
         Box(new Rect(x, 112, 154, 50), Surface);
         Text(new Rect(x + 10, 115, 134, 15), label, 9, Muted);
         Text(new Rect(x + 10, 132, 134, 28), value, 22, color, bold: true);
+    }
+    private string SourceLabel()
+    {
+        if (coverage.TotalDamage <= 0) return "No outgoing player damage recorded";
+        var parts = new List<string>();
+        if (coverage.OwnerDamage > 0) parts.Add($"{coverage.OwnerDamage:N0} owner");
+        if (coverage.FallbackDamage > 0) parts.Add($"{coverage.FallbackDamage:N0} estimated");
+        if (coverage.UnspecifiedDamage > 0) parts.Add($"{coverage.UnspecifiedDamage:N0} unspecified");
+        return "Recorded: " + string.Join(" · ", parts);
+    }
+    private void DrawSources()
+    {
+        Pages(0);
+        Text(new Rect(22, 250, 478, 25), "RECORDED OUTGOING PLAYER DAMAGE", 11, Gold, bold: true);
+        SourceRow(285, "Owner-resolved", coverage.OwnerDamage, coverage.OwnerHits);
+        SourceRow(337, "Displayed-number estimate", coverage.FallbackDamage, coverage.FallbackHits);
+        SourceRow(389, "Unspecified / older report", coverage.UnspecifiedDamage, coverage.UnspecifiedHits);
+        Text(new Rect(22, 448, 478, 21), $"Relay transport: {coverage.RelayedDamage:N0} damage · {coverage.RelayedHits} hits", 11, Accent);
+        Text(new Rect(22, 476, 478, 20), "Relay describes delivery; owner/fallback describes measurement.", 10, Muted);
+        Text(new Rect(22, 500, 478, 20), "These totals cannot reveal hits missed by unmodded owners.", 10, Muted);
+        Text(new Rect(22, 524, 478, 18), fight!.Coverage, 9, Muted);
+    }
+    private void SourceRow(float y, string label, double amount, int hits)
+    {
+        var area = new Rect(18, y, 484, 45);
+        Box(area, Surface);
+        if (coverage.TotalDamage > 0) Box(new Rect(18, y + 42, (float)(484 * amount / coverage.TotalDamage), 3), Accent);
+        Text(new Rect(28, y + 3, 294, 38), label, 12, Ink);
+        Text(new Rect(325, y + 3, 167, 38), $"{amount:N0} · {hits} hits", 11, Accent, TextAnchor.MiddleRight);
     }
     private int BrowserPageCount => Math.Max(1, (plugin.Tracker.History.Count + 4) / 5);
     private void DrawFightBrowser()

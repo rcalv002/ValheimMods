@@ -140,7 +140,7 @@ internal static class Capture
         if (context.Kind == "damage" && hit != null && PublishPeriodic(target, context, amount)) return;
         string companion = "";
         var source = hit != null ? DamageSourceOf(hit.GetAttacker(), out companion) : new Actor();
-        var e = At(new CombatEvent { Kind = context.Kind, Target = ActorOf(target), Amount = amount, Result = context.Result,
+        var e = At(new CombatEvent { Kind = context.Kind, CaptureMode = "owner", Target = ActorOf(target), Amount = amount, Result = context.Result,
             Source = source, Weapon = companion,
             Ability = hit != null ? (hit.m_skill != Skills.SkillType.None ? hit.m_skill.ToString() : hit.m_hitType.ToString()) : "Healing / regeneration" },
             hit != null ? hit.m_point : target.transform.position);
@@ -176,7 +176,7 @@ internal static class Capture
             var result = Periodic.Consume(destination.Id, component.Type, component.Raw, componentEffective, Plugin.Now);
             foreach (var share in result.Shares)
             {
-                var e = At(new CombatEvent { Kind = "damage", Periodic = true, Source = share.Source, Target = destination,
+                var e = At(new CombatEvent { Kind = "damage", CaptureMode = "owner", Periodic = true, Source = share.Source, Target = destination,
                     Amount = share.Amount, Ability = component.Type + " damage over time", Weapon = share.Weapon,
                     Result = context.Result, Correlation = share.Correlation }, context.Hit.m_point);
                 e.Types[component.Type] = share.Amount;
@@ -184,7 +184,7 @@ internal static class Capture
             }
             if (result.Unattributed > 0.0001)
             {
-                var e = At(new CombatEvent { Kind = "damage", Periodic = true, Target = destination, Amount = result.Unattributed,
+                var e = At(new CombatEvent { Kind = "damage", CaptureMode = "owner", Periodic = true, Target = destination, Amount = result.Unattributed,
                     Ability = component.Type + " damage over time", Result = context.Result }, context.Hit.m_point);
                 e.Types[component.Type] = result.Unattributed;
                 Plugin.Instance?.Publish(e);
@@ -290,7 +290,7 @@ internal static class ApplyDamagePatch
         if (__state.HealthWritten || __state.Result != "Immune" || __state.Hit == null || !__state.Character.IsOwner()) return;
         var hit = __state.Hit;
         var source = Capture.DamageSourceOf(hit.GetAttacker(), out string companion);
-        Plugin.Instance?.Publish(Capture.At(new CombatEvent { Kind = "damage", Source = source, Weapon = companion,
+        Plugin.Instance?.Publish(Capture.At(new CombatEvent { Kind = "damage", CaptureMode = "owner", Source = source, Weapon = companion,
             Target = Capture.ActorOf(__state.Character), Amount = 0, Ability = hit.m_skill != Skills.SkillType.None ? hit.m_skill.ToString() : hit.m_hitType.ToString(),
             Result = "Immune", Correlation = Capture.CorrelationOf(hit) }, hit.m_point));
     });

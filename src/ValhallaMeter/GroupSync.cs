@@ -144,6 +144,7 @@ internal sealed class GroupSync
             // Assign one host clock to group events. Clients use the echoed timestamps.
             if (IsHost) e.Time = now;
             else if (Math.Abs(e.Time - now) > 30) continue;
+            e.Relayed = true;
             if (!plugin.Accept(e)) continue;
             if (IsHost)
             {

@@ -102,7 +102,15 @@ for(int i=0;i<3;i++)BrowserClick(">",c=>c.Area.y>550);
 Check(Has("4 / 4")&&HasBrowserRow("Encounter 00")&&!HasBrowserRow("Encounter 19"),"Fight browser did not reach its oldest page");
 BrowserClick("Encounter 00");
 Check(Has("HISTORY")&&Has("Fight 20 / 20")&&Has("Encounter 00")&&!Has("WHEN"),"Fight browser selected the wrong retained fight");
-System.Console.WriteLine("PASS Production overlay: fight browser and 20-fight paging, Older/Newer/Live, target filters, selectable DPS series, damage breakdowns, tabs, scaled hit targets, export and dragging");
+browserPlugin.Tracker.Add(new CombatEvent{Id="source:fallback",Time=1000,Amount=25,CaptureMode="fallback",Source=actor,
+    Target=new Actor{Id="entity:source",Name="Source check"}});
+browserPlugin.Tracker.Add(new CombatEvent{Id="source:owner",Time=1001,Amount=10,CaptureMode="owner",Relayed=true,Source=actor,
+    Target=new Actor{Id="entity:source",Name="Source check"}});
+browserPlugin.Tracker.Finish("test");BrowserDraw();BrowserClick("Live");BrowserClick("Sources");
+Check(Has("Owner-resolved")&&Has("Displayed-number estimate")&&Has("Unspecified / older report")&&
+    Has("Relay transport: 10 damage · 1 hits"),"Fight sources did not distinguish measurement and relay delivery");
+File.WriteAllText(Path.Combine(root,"artifacts","sources-preview.svg"),GUI.Svg());
+System.Console.WriteLine("PASS Production overlay: source provenance, fight browser and 20-fight paging, Older/Newer/Live, target filters, DPS series, breakdowns, tabs, scaled hit targets, export and dragging");
 System.Console.WriteLine("Wrote artifacts/overlay-preview.svg (headless layout preview, not an in-game screenshot).");
 }
 catch(Exception ex)
