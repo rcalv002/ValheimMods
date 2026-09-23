@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>netstandard2.1</TargetFramework><Version>0.2.12</Version>
+    <TargetFramework>netstandard2.1</TargetFramework><Version>0.2.13</Version>
     <DisableImplicitFrameworkReferences>true</DisableImplicitFrameworkReferences><NoStdLib>true</NoStdLib>
   </PropertyGroup>
   <ItemGroup>

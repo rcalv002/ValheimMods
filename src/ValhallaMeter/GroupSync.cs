@@ -18,6 +18,7 @@ internal sealed class GroupSync
     private readonly List<CombatEvent> outgoing = new List<CombatEvent>();
     private readonly RelayHandshake handshake = new RelayHandshake();
     private ZRoutedRpc? rpc;
+    private bool? previousGroupEnabled;
     private double lastWelcome = -100;
     private double nextFlush;
     private long locallyPublishedEvents, locallyPublishedDamageEvents, dispatchedEventCopies;
@@ -60,6 +61,19 @@ internal sealed class GroupSync
 
     public void Update()
     {
+        bool groupEnabled = plugin.GroupEnabled;
+        if (previousGroupEnabled.HasValue && previousGroupEnabled.Value != groupEnabled)
+        {
+            bool wasRelaying = previousGroupEnabled.Value && (IsHost || Connected);
+            bool willRelay = groupEnabled && IsHost;
+            // A client remains in local capture until Welcome; split only when coverage changes.
+            if (wasRelaying != willRelay)
+            {
+                plugin.Tracker.ResetSession();
+                Capture.ClearFallbacks();
+            }
+        }
+        previousGroupEnabled = groupEnabled;
         if (!ReferenceEquals(rpc, ZRoutedRpc.instance))
         {
             plugin.Tracker.ResetSession();

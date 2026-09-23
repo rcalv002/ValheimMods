@@ -1,3 +1,9 @@
+# 0.2.13 — group capture boundaries
+
+- Close the active encounter when disabling an active relay or enabling one on the host; clients keep local capture until a modded host responds, then start a new segment.
+- Clear pending personal-damage fallback matches at the same transition.
+- Exercise both directions with the production relay harness.
+
 # 0.2.12 — relay reconnection
 
 - Retry the client handshake every 10 seconds until a modded host responds, including after the former three-attempt limit and after a relay timeout.
