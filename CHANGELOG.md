@@ -1,3 +1,10 @@
+# 0.2.7 — fight browser
+
+- Add a Fights button beside Older/Newer that lists up to 20 retained fights with age, local date/time, target, duration, and group damage.
+- Page through five fights at a time and select any row to pin that encounter for detailed inspection.
+- Make Live, Older, Newer, and analysis tabs close the browser when selected.
+- Verify selection of the oldest of 20 fights through the production overlay input harness.
+
 # 0.2.6 — dated fight history
 
 - Record a UTC wall-clock timestamp when each encounter begins and preserve it in saved snapshots and reports.

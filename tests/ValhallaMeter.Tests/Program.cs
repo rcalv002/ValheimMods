@@ -214,6 +214,17 @@ tests.Add(("Older skips the latest fight already displayed while idle", () => {
     Check(view.Older(null, history), "Older should be available");
     Check(view.Resolve(null, history) == older && !view.IsLive, "Older repeated the displayed fight");
 }));
+tests.Add(("Fight browser pins only a retained encounter", () => {
+    var latest = new Fight { Title = "Troll" };
+    var older = new Fight { Title = "Boar" };
+    var history = new List<Fight> { latest, older };
+    var view = new FightSelection();
+    Check(view.Select(older, history) && view.Resolve(null, history) == older, "Browser did not select the requested fight");
+    Check(!view.Select(new Fight { Title = "Missing" }, history) && view.Resolve(null, history) == older,
+        "Browser accepted a fight outside retained history");
+    view.Live();
+    Check(view.Resolve(null, history) == latest, "Returning to latest failed");
+}));
 tests.Add(("Live, Older and Newer select different fight totals", () => {
     var t = new CombatTracker(); t.Add(Event(10, 30)); t.Finish("test");
     t.Add(Event(20, 60)); t.Finish("test"); t.Add(Event(30, 90));

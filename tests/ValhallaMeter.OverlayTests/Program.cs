@@ -36,7 +36,13 @@ try
 {
 Damage(10,30,"Boar");plugin.Tracker.Finish("test");Damage(20,60,"Troll");plugin.Tracker.Finish("test");
 plugin.Tracker.History[0].RecordedAtUnix=DateTimeOffset.UtcNow.ToUnixTimeSeconds()-5*60;Draw();
-Check(Has("Troll"),"Latest fight not displayed");Click("Older");Check(Has("Boar")&&Has("HISTORY"),"Actual Older hit target failed");
+Check(Has("Troll"),"Latest fight not displayed");
+Click("Fights");Check(Has("WHEN")&&Has("TARGET")&&Has("DURATION")&&Has("DAMAGE")&&Has("Boar")&&Has("Troll"),"Fight browser did not list saved encounters");
+Click("Live");Check(!Has("WHEN")&&Has("Troll"),"Live did not close the fight browser");
+Click("Fights");
+Click("Boar");Check(Has("HISTORY")&&Has("Boar")&&!Has("WHEN"),"Fight browser did not pin the chosen encounter");
+Click("Live");Check(Has("Troll")&&Has("LATEST"),"Fight browser did not return to latest");
+Click("Older");Check(Has("Boar")&&Has("HISTORY"),"Actual Older hit target failed");
 Click("Newer");Check(Has("Troll"),"Actual Newer hit target failed");Click("Live");Check(Has("LATEST"),"Actual Live hit target failed");
 Click("Compare");Check(Has("CURRENT  ·  Troll")&&Has("PREVIOUS  ·  Boar"),"Fight comparison did not select the preceding encounter");Click("Damage");
 Damage(30,90,"Greydwarf","Iron mace","Blunt");Damage(32,10,"Neck","Huntsman bow","Pierce");Draw();Check(Has("LIVE")&&Has("2 targets · ALL"),"Live mixed-target view failed");
@@ -71,7 +77,32 @@ Check(GUI.Commands.Any(c=>c.Text=="Iron mace  ·  1 HIT")&&GUI.Commands.Any(c=>c
 plugin.WindowX.Value=30;plugin.WindowY.Value=30;
 string root=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"../../../../../"));Directory.CreateDirectory(Path.Combine(root,"artifacts"));
 File.WriteAllText(Path.Combine(root,"artifacts","overlay-preview.svg"),GUI.Svg());
-System.Console.WriteLine("PASS Production overlay: Older/Newer/Live, target filters, selectable interactive DPS series, damage breakdowns, stable history, tabs, scaled hit targets, export and dragging");
+var browserPlugin=new Plugin();
+for(int i=0;i<20;i++)
+{
+    string name=$"Encounter {i:00}";
+    browserPlugin.Tracker.Add(new CombatEvent{Id="browser:"+i,Time=100+i*10,Amount=i+1,Source=actor,
+        Target=new Actor{Id="entity:"+name,Name=name}});
+    browserPlugin.Tracker.Finish("test");
+}
+var browserWindow=new MeterWindow(browserPlugin);
+void BrowserDraw(){browserWindow.Refresh();GUI.Commands.Clear();browserWindow.Draw();}
+void BrowserClick(string label,Func<GUI.Draw,bool>? where=null)
+{
+    var r=GUI.Commands.Single(c=>c.Text==label&&(where==null||where(c))).Area;
+    ZInput.pointerPosition=new Vector3(r.x+r.width/2,Screen.height-r.y-r.height/2);
+    ZInput.Down=true;ZInput.Held=true;ZInput.Up=false;browserWindow.HandleInput();
+    ZInput.Down=false;ZInput.Held=false;ZInput.Up=true;browserWindow.HandleInput();ZInput.Up=false;BrowserDraw();
+}
+BrowserDraw();BrowserClick("Fights");
+File.WriteAllText(Path.Combine(root,"artifacts","fight-browser-preview.svg"),GUI.Svg());
+bool HasBrowserRow(string label)=>GUI.Commands.Any(c=>c.Text==label&&c.Area.y>=300&&c.Area.y<580);
+Check(Has("1 / 4")&&HasBrowserRow("Encounter 19")&&HasBrowserRow("Encounter 15")&&!HasBrowserRow("Encounter 00"),"Fight browser first page is wrong");
+for(int i=0;i<3;i++)BrowserClick(">",c=>c.Area.y>550);
+Check(Has("4 / 4")&&HasBrowserRow("Encounter 00")&&!HasBrowserRow("Encounter 19"),"Fight browser did not reach its oldest page");
+BrowserClick("Encounter 00");
+Check(Has("HISTORY")&&Has("Fight 20 / 20")&&Has("Encounter 00")&&!Has("WHEN"),"Fight browser selected the wrong retained fight");
+System.Console.WriteLine("PASS Production overlay: fight browser and 20-fight paging, Older/Newer/Live, target filters, selectable DPS series, damage breakdowns, tabs, scaled hit targets, export and dragging");
 System.Console.WriteLine("Wrote artifacts/overlay-preview.svg (headless layout preview, not an in-game screenshot).");
 }
 catch(Exception ex)

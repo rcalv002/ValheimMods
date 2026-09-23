@@ -15,11 +15,14 @@ internal sealed class MeterWindow
     private readonly PointerClick click = new PointerClick();
     private readonly List<HitTarget> targets = new List<HitTarget>();
     private readonly Dictionary<string, GUIStyle> styles = new Dictionary<string, GUIStyle>();
+    private readonly Dictionary<string, double> browserDamage = new Dictionary<string, double>();
     private Rect rect;
     private List<PlayerRow> rows = new List<PlayerRow>();
     private List<Actor> enemyTargets = new List<Actor>();
     private Fight? fight;
     private int tab, page, pageCount = 1, detailMode;
+    private int browserPage;
+    private bool browserOpen;
     private string selected = "";
     private string selectedTarget = "";
     private string selectedBreakdown = "";
@@ -81,7 +84,11 @@ internal sealed class MeterWindow
         if (active && new Rect(0, 238, Width, 310).Contains(local))
         {
             float wheel = ZInput.GetMouseScrollWheel();
-            if (wheel != 0) page = Math.Clamp(page + (wheel < 0 ? 1 : -1), 0, pageCount - 1);
+            if (wheel != 0)
+            {
+                if (browserOpen) browserPage = Math.Clamp(browserPage + (wheel < 0 ? 1 : -1), 0, BrowserPageCount - 1);
+                else page = Math.Clamp(page + (wheel < 0 ? 1 : -1), 0, pageCount - 1);
+            }
         }
     }
     private void Clamp()
@@ -139,17 +146,23 @@ internal sealed class MeterWindow
         Stat(18, "GROUP DPS", fight == null ? "—" : (total / duration).ToString("N1"), Accent);
         Stat(183, "TOTAL DAMAGE", fight == null ? "—" : total.ToString("N0"), Ink);
         Stat(348, "DURATION", fight == null ? "—" : duration.ToString("0.0") + "s", Ink);
-        Button("live", new Rect(18, 173, 63, 28), "Live", !selection.IsLive, () => selection.Live(), selection.IsLive);
-        Button("older", new Rect(87, 173, 63, 28), "Older", selection.CanOlder(plugin.Tracker.Current, plugin.Tracker.History), () => selection.Older(plugin.Tracker.Current, plugin.Tracker.History));
-        Button("newer", new Rect(156, 173, 63, 28), "Newer", !selection.IsLive, () => selection.Newer(plugin.Tracker.History));
+        Button("live", new Rect(18, 173, 63, 28), "Live", !selection.IsLive || browserOpen,
+            () => { selection.Live(); browserOpen = false; }, selection.IsLive && !browserOpen);
+        Button("older", new Rect(87, 173, 63, 28), "Older", selection.CanOlder(plugin.Tracker.Current, plugin.Tracker.History),
+            () => { selection.Older(plugin.Tracker.Current, plugin.Tracker.History); browserOpen = false; });
+        Button("newer", new Rect(156, 173, 63, 28), "Newer", !selection.IsLive,
+            () => { selection.Newer(plugin.Tracker.History); browserOpen = false; });
+        Button("fights", new Rect(225, 173, 74, 28), "Fights", plugin.Tracker.History.Count > 0,
+            () => { browserOpen = !browserOpen; browserPage = 0; }, browserOpen);
         Button("end", new Rect(305, 173, 86, 28), "End fight", plugin.Tracker.Current != null && selection.IsLive, () => plugin.Tracker.Finish("Manual"));
         Button("export", new Rect(397, 173, 105, 28), "Export report", fight != null, () => { if (fight != null) plugin.Export(fight); });
         for (int i = 0; i < Tabs.Length; i++)
         {
             int value = i; float tabWidth = 484f / Tabs.Length;
-            Button("tab:" + i, new Rect(18 + i * tabWidth, 214, tabWidth, 28), Tabs[i], true, () => { tab = value; if (value == 7) selectedTarget = ""; page = 0; }, tab == i, true);
+            Button("tab:" + i, new Rect(18 + i * tabWidth, 214, tabWidth, 28), Tabs[i], true, () => { browserOpen = false; tab = value; if (value == 7) selectedTarget = ""; page = 0; }, !browserOpen && tab == i, true);
         }
-        if (fight == null)
+        if (browserOpen) DrawFightBrowser();
+        else if (fight == null)
         {
             pageCount = 1;
             Text(new Rect(30, 296, 460, 30), "Your next fight starts here.", 17, Ink, TextAnchor.MiddleCenter);
@@ -160,12 +173,16 @@ internal sealed class MeterWindow
         else if (tab == 5) DrawBuffs();
         else if (tab == 6) DrawDeaths();
         else DrawComparison();
-        Button("page:prev", new Rect(18, 552, 31, 23), "<", page > 0, () => page--);
-        Text(new Rect(54, 552, 110, 23), $"{page + 1} / {pageCount}", 10, Muted);
-        Button("page:next", new Rect(163, 552, 31, 23), ">", page + 1 < pageCount, () => page++);
-        Text(new Rect(212, 552, 290, 23), fight == null ? "" : $"Unattributed {unknown:N0}   ·   {fight.Events.Count:N0} events", 10, Muted, TextAnchor.MiddleRight);
+        Button("page:prev", new Rect(18, 552, 31, 23), "<", browserOpen ? browserPage > 0 : page > 0,
+            () => { if (browserOpen) browserPage--; else page--; });
+        Text(new Rect(54, 552, 110, 23), browserOpen ? $"{browserPage + 1} / {BrowserPageCount}" : $"{page + 1} / {pageCount}", 10, Muted);
+        Button("page:next", new Rect(163, 552, 31, 23), ">", browserOpen ? browserPage + 1 < BrowserPageCount : page + 1 < pageCount,
+            () => { if (browserOpen) browserPage++; else page++; });
+        Text(new Rect(212, 552, 290, 23), browserOpen ? $"{plugin.Tracker.History.Count} / 20 saved fights" :
+            fight == null ? "" : $"Unattributed {unknown:N0}   ·   {fight.Events.Count:N0} events", 10, Muted, TextAnchor.MiddleRight);
         Line(582);
-        string interaction = tab == 4 && fight != null ? "INTERACTING  ·  Click a breakdown row to isolate it. Click again to clear." :
+        string interaction = browserOpen ? "INTERACTING  ·  Select a saved fight to inspect it." :
+            tab == 4 && fight != null ? "INTERACTING  ·  Click a breakdown row to isolate it. Click again to clear." :
             plugin.WindowLocked.Value ? "INTERACTING  ·  Panel locked. Use Unlock panel to enable dragging." :
             "INTERACTING  ·  Click a player for details. Drag the header to move.";
         string status = plugin.Issue.Length > 0 ? plugin.Issue : Notice.Length > 0 ? Notice : plugin.Interacting ? interaction : "Press F8 to browse fights, change tabs, or move this panel.";
@@ -176,6 +193,38 @@ internal sealed class MeterWindow
         Box(new Rect(x, 112, 154, 50), Surface);
         Text(new Rect(x + 10, 115, 134, 15), label, 9, Muted);
         Text(new Rect(x + 10, 132, 134, 28), value, 22, color, bold: true);
+    }
+    private int BrowserPageCount => Math.Max(1, (plugin.Tracker.History.Count + 4) / 5);
+    private void DrawFightBrowser()
+    {
+        var history = plugin.Tracker.History;
+        foreach (var id in browserDamage.Keys.Where(id => !history.Any(f => f.Id == id)).ToArray()) browserDamage.Remove(id);
+        browserPage = Math.Clamp(browserPage, 0, BrowserPageCount - 1);
+        Text(new Rect(24, 250, 140, 18), "WHEN", 9, Muted);
+        Text(new Rect(167, 250, 150, 18), "TARGET", 9, Muted);
+        Text(new Rect(317, 250, 80, 18), "DURATION", 9, Muted, TextAnchor.MiddleRight);
+        Text(new Rect(400, 250, 96, 18), "DAMAGE", 9, Muted, TextAnchor.MiddleRight);
+        long nowUnix = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        int slot = 0;
+        foreach (var item in history.Skip(browserPage * 5).Take(5))
+        {
+            float y = 274 + slot++ * 52;
+            var area = new Rect(18, y, 484, 48);
+            bool active = item.Id == fight?.Id;
+            Box(area, active ? new Color32(33, 66, 73, 255) : Surface);
+            if (active) Box(new Rect(18, y, 3, 48), Accent);
+            Text(new Rect(28, y + 3, 132, 20), FightClock.Relative(item.RecordedAtUnix, nowUnix), 12, active ? Accent : Ink, bold: active);
+            Text(new Rect(28, y + 23, 132, 17), DateTimeOffset.FromUnixTimeSeconds(item.RecordedAtUnix).ToLocalTime().ToString("MMM d, yyyy h:mm tt"), 9, Muted);
+            Text(new Rect(167, y + 5, 146, 38), item.Title, 12, Ink);
+            Text(new Rect(317, y + 5, 80, 38), item.Duration(Plugin.Now).ToString("0.0") + "s", 11, Muted, TextAnchor.MiddleRight);
+            if (!browserDamage.TryGetValue(item.Id, out double damage))
+                browserDamage[item.Id] = damage = CombatTracker.Rows(item).Sum(r => r.Damage);
+            Text(new Rect(400, y + 5, 96, 38), damage.ToString("N0"), 12, active ? Accent : Ink, TextAnchor.MiddleRight, active);
+            Hit("fight:" + item.Id, area, () =>
+            {
+                if (selection.Select(item, history)) { browserOpen = false; page = 0; }
+            });
+        }
     }
     private void Pages(int count, int size = PageSize) { pageCount = Math.Max(1, (count + size - 1) / size); page = Math.Clamp(page, 0, pageCount - 1); }
     private double Value(PlayerRow row) => tab switch { 1 => row.Taken, 2 => row.HealingReceived, 3 => row.Absorbed, _ => row.Damage };

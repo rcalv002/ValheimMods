@@ -9,6 +9,12 @@ public sealed class FightSelection
     public bool IsLive => pinned == null;
     public Fight? Resolve(Fight? current, IReadOnlyList<Fight> history) => pinned ?? current ?? (history.Count > 0 ? history[0] : null);
     public void Live() => pinned = null;
+    public bool Select(Fight fight, IReadOnlyList<Fight> history)
+    {
+        for (int i = 0; i < history.Count; i++)
+            if (history[i].Id == fight.Id) { pinned = history[i]; return true; }
+        return false;
+    }
     public int Index(IReadOnlyList<Fight> history)
     {
         for (int i = 0; i < history.Count; i++) if (history[i].Id == pinned?.Id) return i;
