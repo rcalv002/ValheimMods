@@ -11,12 +11,14 @@ internal sealed class TargetSync
     private const string HelloRpc = "TargetCall_Hello_v1";
     private const string RequestRpc = "TargetCall_Request_v1";
     private const string StateRpc = "TargetCall_State_v1";
+    private const string DeadRpc = "TargetCall_Dead_v1";
     private const float Lifetime = 30f;
     private readonly Dictionary<long, double> lastRequest = new Dictionary<long, double>();
     private ZRoutedRpc? rpc;
     private long hostId;
     private double nextHello;
     private double lastState;
+    private double nextDeadReport;
     private int revision;
     private bool connected;
     public readonly CallState State = new CallState();
@@ -42,6 +44,8 @@ internal sealed class TargetSync
                 rpc.Register<long, uint, long, int, float>(StateRpc,
                     (sender, user, id, caller, sequence, remaining) =>
                         Plugin.Guard(() => ReceiveState(sender, user, id, caller, sequence, remaining)));
+                rpc.Register<long, uint, int>(DeadRpc,
+                    (sender, user, id, sequence) => Plugin.Guard(() => Dead(sender, user, id, sequence)));
             }
         }
         if (rpcChanged || currentHost != hostId)
@@ -52,11 +56,19 @@ internal sealed class TargetSync
             revision = 0;
             connected = false;
             nextHello = 0;
+            nextDeadReport = 0;
         }
         if (rpc == null || !ZNet.instance) return;
         if (IsHost)
         {
-            if (State.HasIdentity && !State.Active(Clock)) SetCall(0, 0, 0);
+            if (State.HasIdentity)
+            {
+                // Calls remain in effect while their caller is connected. Only
+                // clients use the 30-second lease to drop a stale host marker.
+                if (State.Caller != ZNet.GetUID() && !ZNet.instance.GetPeers().Any(p => p.m_uid == State.Caller))
+                    SetCall(0, 0, 0);
+                else State.Apply(State.UserId, State.ObjectId, State.Caller, revision, Lifetime, Clock);
+            }
         }
         else
         {
@@ -75,6 +87,14 @@ internal sealed class TargetSync
         if (IsHost) Request(ZNet.GetUID(), user, id);
         else rpc.InvokeRoutedRPC(hostId, RequestRpc, user, id);
         return true;
+    }
+
+    public void ReportDead()
+    {
+        if (rpc == null || !State.Active(Clock) || !Connected || Clock < nextDeadReport) return;
+        nextDeadReport = Clock + 2;
+        if (IsHost) Dead(ZNet.GetUID(), State.UserId, State.ObjectId, State.Revision);
+        else rpc.InvokeRoutedRPC(hostId, DeadRpc, State.UserId, State.ObjectId, State.Revision);
     }
 
     private void Hello(long sender, int version)
@@ -96,6 +116,14 @@ internal sealed class TargetSync
             return;
         }
         SetCall(user, id, sender);
+    }
+
+    private void Dead(long sender, long user, uint id, int sequence)
+    {
+        if (!IsHost || sender == 0 ||
+            (sender != ZNet.GetUID() && !ZNet.instance.GetPeers().Any(p => p.m_uid == sender))) return;
+        if (State.Active(Clock) && sequence == revision && State.UserId == user && State.ObjectId == id)
+            SetCall(0, 0, 0);
     }
 
     private void SetCall(long user, uint id, long caller)

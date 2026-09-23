@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace TargetCall;
 
-[BepInPlugin("local.targetcall", "Target Call", "0.1.0")]
+[BepInPlugin("local.targetcall", "Target Call", "0.1.1")]
 public sealed class Plugin : BaseUnityPlugin
 {
     private static Plugin? instance;
@@ -15,22 +15,26 @@ public sealed class Plugin : BaseUnityPlugin
     private ConfigEntry<float> markerDistance = null!;
     private TargetSync sync = null!;
     private Texture2D? pixel;
-    private GUIStyle? heading;
-    private GUIStyle? targetText;
-    private GUIStyle? pointer;
+    private Texture2D? icon;
+    private GUIStyle? markerText;
     private double nextErrorLog;
 
     private void Awake()
     {
         instance = this;
-        callKey = Config.Bind("Controls", "CallKey", new KeyboardShortcut(KeyCode.T, KeyCode.LeftControl),
-            "Call the hostile creature under the crosshair; repeat on your call to clear it. Ctrl+T with no creature also clears your own call.");
-        takeKey = Config.Bind("Controls", "TakeKey", new KeyboardShortcut(KeyCode.T),
+        callKey = Config.Bind("Controls", "CallKey", new KeyboardShortcut(KeyCode.F6),
+            "Call the hostile creature under the crosshair; repeat on your call to clear it. F6 with no creature also clears your own call.");
+        takeKey = Config.Bind("Controls", "TakeKey", new KeyboardShortcut(KeyCode.F6, KeyCode.LeftShift),
             "Take or release the shared call as your local focus. Taking does not aim attacks or turn the camera.");
+        // Migrate the 0.1.0 defaults: T also opens Valheim's emote panel.
+        if (callKey.Value.MainKey == KeyCode.T && callKey.Value.Modifiers.SequenceEqual(new[] { KeyCode.LeftControl }))
+            callKey.Value = new KeyboardShortcut(KeyCode.F6);
+        if (takeKey.Value.MainKey == KeyCode.T && !takeKey.Value.Modifiers.Any())
+            takeKey.Value = new KeyboardShortcut(KeyCode.F6, KeyCode.LeftShift);
         markerDistance = Config.Bind("Display", "MarkerDistance", 80f,
             new ConfigDescription("Maximum distance for the on-screen target marker.", new AcceptableValueRange<float>(15f, 150f)));
         sync = new TargetSync();
-        Logger.LogInfo("Target Call 0.1.0 loaded. Ctrl+T calls; T takes the shared target.");
+        Logger.LogInfo("Target Call 0.1.1 loaded. F6 calls; Left Shift+F6 takes the shared target.");
     }
 
     private void Update()
@@ -39,9 +43,10 @@ public sealed class Plugin : BaseUnityPlugin
         {
             sync.Update();
             Player player = Player.m_localPlayer;
+            ObserveDeath();
             if (!player || BusyUI()) return;
-            if (ShortcutDown(callKey.Value)) Call(player);
-            else if (ShortcutDown(takeKey.Value)) Take(player);
+            if (ShortcutDown(takeKey.Value)) Take(player);
+            else if (ShortcutDown(callKey.Value)) Call(player);
         });
     }
 
@@ -97,6 +102,14 @@ public sealed class Plugin : BaseUnityPlugin
 
     private static void Notice(Player player, string message) => player.Message(MessageHud.MessageType.TopLeft, message);
 
+    private void ObserveDeath()
+    {
+        if (!ZNetScene.instance || !sync.State.Active(Time.realtimeSinceStartupAsDouble)) return;
+        var go = ZNetScene.instance.FindInstance(new ZDOID(sync.State.UserId, sync.State.ObjectId));
+        var creature = go ? go.GetComponent<Character>() : null;
+        if (creature && creature.IsDead()) sync.ReportDead();
+    }
+
     private Character? Resolve()
     {
         if (!ZNetScene.instance || !sync.State.Active(Time.realtimeSinceStartupAsDouble)) return null;
@@ -118,21 +131,24 @@ public sealed class Plugin : BaseUnityPlugin
             if (screen.z <= 0 || screen.x < 0 || screen.x > Screen.width || screen.y < 0 || screen.y > Screen.height) return;
             EnsureStyle();
             float x = Mathf.Clamp(screen.x, 86, Screen.width - 86);
-            float y = Mathf.Clamp(Screen.height - screen.y - 76, 4, Screen.height - 76);
+            float y = Mathf.Clamp(Screen.height - screen.y - 78, 4, Screen.height - 78);
             Color old = GUI.color;
             try
             {
                 Color accent = sync.State.Focused ? new Color32(246, 194, 88, 255) : new Color32(89, 216, 220, 255);
-                GUI.color = new Color32(12, 22, 29, 220);
-                GUI.DrawTexture(new Rect(x - 84, y, 168, 49), pixel!);
+                GUI.color = new Color32(3, 10, 16, 255);
+                GUI.DrawTexture(new Rect(x - 26, y - 2, 52, 52), icon!);
                 GUI.color = accent;
-                GUI.DrawTexture(new Rect(x - 84, y, 168, 2), pixel!);
-                heading!.normal.textColor = accent;
-                pointer!.normal.textColor = accent;
-                GUI.Label(new Rect(x - 80, y + 3, 160, 17), sync.State.Focused ? "TAKEN TARGET" : "CALLED TARGET", heading);
+                GUI.DrawTexture(new Rect(x - 24, y, 48, 48), icon!);
+                GUI.color = new Color32(12, 22, 29, 228);
+                GUI.DrawTexture(new Rect(x - 82, y + 45, 164, 25), pixel!);
+                GUI.color = accent;
+                GUI.DrawTexture(new Rect(x - 82, y + 45, 164, 2), pixel!);
                 GUI.color = Color.white;
-                GUI.Label(new Rect(x - 80, y + 21, 160, 22), Name(creature), targetText);
-                GUI.Label(new Rect(x - 12, y + 46, 24, 23), "▼", pointer);
+                string name = Name(creature);
+                if (name.Length > 16) name = name.Substring(0, 15) + "…";
+                GUI.Label(new Rect(x - 79, y + 46, 158, 23),
+                    (sync.State.Focused ? "TAKEN  " : "CALLED  ") + name, markerText);
             }
             finally { GUI.color = old; }
         });
@@ -146,10 +162,28 @@ public sealed class Plugin : BaseUnityPlugin
             pixel.SetPixel(0, 0, Color.white);
             pixel.Apply();
         }
-        if (heading != null) return;
-        heading = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = 11, fontStyle = FontStyle.Bold };
-        targetText = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = 14, fontStyle = FontStyle.Bold };
-        pointer = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = 20, fontStyle = FontStyle.Bold };
+        if (icon == null)
+        {
+            icon = new Texture2D(48, 48, TextureFormat.RGBA32, false)
+            {
+                hideFlags = HideFlags.HideAndDontSave,
+                filterMode = FilterMode.Bilinear
+            };
+            for (int y = 0; y < 48; y++)
+                for (int x = 0; x < 48; x++)
+                {
+                    float dx = Math.Abs(x - 23.5f), dy = Math.Abs(y - 23.5f);
+                    float diamond = dx + dy;
+                    bool outline = diamond >= 20 && diamond <= 23;
+                    bool tick = (dx <= 1.5f && dy >= 7 && dy <= 14) ||
+                        (dy <= 1.5f && dx >= 7 && dx <= 14);
+                    bool center = dx <= 2.5f && dy <= 2.5f;
+                    icon.SetPixel(x, y, outline || tick || center ? Color.white : Color.clear);
+                }
+            icon.Apply();
+        }
+        if (markerText != null) return;
+        markerText = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontSize = 12, fontStyle = FontStyle.Bold };
     }
 
     internal static void Guard(Action action)
@@ -166,6 +200,7 @@ public sealed class Plugin : BaseUnityPlugin
     private void OnDestroy()
     {
         if (pixel) Destroy(pixel);
+        if (icon) Destroy(icon);
         sync?.State.Reset();
         instance = null;
     }

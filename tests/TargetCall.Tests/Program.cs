@@ -49,8 +49,16 @@ UnityEngine.Time.realtimeSinceStartupAsDouble = 202.2;
 hostRpc.DeliverRequest(20, 2002, 56);
 UnityEngine.Time.realtimeSinceStartupAsDouble = 233;
 host.Update();
-Check(!host.State.Active(233) && host.State.Revision == 5, "Host expires and broadcasts a stale call");
+Check(host.State.Active(233) && host.State.Revision == 4, "Host renews a call past the client lease");
+ZNet.instance.Peers.RemoveAll(p => p.m_uid == 20);
+host.Update();
+Check(!host.State.Active(233) && host.State.Revision == 5, "Host clears a departed caller's target");
 Check(host.Call(0, 44) && host.State.Active(233), "Host relays a valid zero-user ZDO identity");
+int dyingRevision = host.State.Revision;
+hostRpc.DeliverDead(30, 0, 44, dyingRevision - 1);
+Check(host.State.Active(233), "Old death report cannot clear a new call");
+hostRpc.DeliverDead(30, 0, 44, dyingRevision);
+Check(!host.State.Active(233), "A reporting peer clears the called creature on death");
 
 ZNet.LocalUid = 20;
 ZNet.instance = new ZNet { Server = false, ServerPeer = new ZNetPeer { m_uid = 10 } };

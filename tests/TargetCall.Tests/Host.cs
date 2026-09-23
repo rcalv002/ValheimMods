@@ -28,11 +28,14 @@ public sealed class ZRoutedRpc
     private readonly Dictionary<string, Delegate> handlers = new Dictionary<string, Delegate>();
     public void Register<T>(string name, Action<long, T> handler) => handlers.Add(name, handler);
     public void Register<T, U>(string name, Action<long, T, U> handler) => handlers.Add(name, handler);
+    public void Register<T, U, V>(string name, Action<long, T, U, V> handler) => handlers.Add(name, handler);
     public void Register<T, U, V, B, K>(string name, Action<long, T, U, V, B, K> handler) => handlers.Add(name, handler);
     public void InvokeRoutedRPC(long recipient, string name, params object[] args) => Calls.Add((recipient, name, args));
     public void DeliverHello(long sender) => ((Action<long, int>)handlers["TargetCall_Hello_v1"])(sender, 1);
     public void DeliverRequest(long sender, long user, uint id) =>
         ((Action<long, long, uint>)handlers["TargetCall_Request_v1"])(sender, user, id);
+    public void DeliverDead(long sender, long user, uint id, int revision) =>
+        ((Action<long, long, uint, int>)handlers["TargetCall_Dead_v1"])(sender, user, id, revision);
     public void DeliverState(long sender, long user, uint id, long caller, int revision, float remaining) =>
         ((Action<long, long, uint, long, int, float>)handlers["TargetCall_State_v1"])(sender, user, id, caller, revision, remaining);
 }
