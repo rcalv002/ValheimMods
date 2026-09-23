@@ -126,8 +126,8 @@ internal sealed class MeterWindow
             () => plugin.WindowLocked.Value = !plugin.WindowLocked.Value, plugin.WindowLocked.Value);
         Line(44);
         Text(new Rect(18, 50, 365, 18), fight == null ? plugin.Coverage : SourceLabel(), 10, Muted);
-        string mode = !selection.IsLive ? "HISTORY" : plugin.Tracker.Current != null ? "LIVE" : "LATEST";
-        Text(new Rect(396, 50, 106, 18), mode, 11, selection.IsLive ? Accent : Gold, TextAnchor.MiddleRight, true);
+        string mode = fight != null && !fight.Complete ? "LIVE" : !selection.IsLive ? "HISTORY" : "LATEST";
+        Text(new Rect(396, 50, 106, 18), mode, 11, mode == "HISTORY" ? Gold : Accent, TextAnchor.MiddleRight, true);
         bool canSelectTarget = enemyTargets.Count > 1;
         Button("target:prev", new Rect(18, 73, 27, 27), "<", canSelectTarget, () => CycleTarget(-1));
         string targetLabel = fight == null ? "Waiting for combat" : selectedTarget.Length == 0 ?
@@ -136,7 +136,8 @@ internal sealed class MeterWindow
         Text(new Rect(53, 72, 267, 29), targetLabel, 20, selectedTarget.Length > 0 ? Gold : Ink, bold: true);
         Button("target:next", new Rect(326, 73, 27, 27), ">", canSelectTarget, () => CycleTarget(1));
         int index = selection.Index(plugin.Tracker.History);
-        string position = !selection.IsLive ? (index >= 0 ? $"Fight {index + 1} / {plugin.Tracker.History.Count}" : "Pinned fight") : $"{plugin.Tracker.History.Count} / 20 saved";
+        string position = fight != null && !fight.Complete ? $"{plugin.Tracker.Active.Count} active · {plugin.Tracker.History.Count} saved" :
+            !selection.IsLive ? (index >= 0 ? $"Fight {index + 1} / {plugin.Tracker.History.Count}" : "Pinned fight") : $"{plugin.Tracker.History.Count} / 20 saved";
         Text(new Rect(365, 76, 137, 23), position, 11, Muted, TextAnchor.MiddleRight);
         if (fight != null)
         {
@@ -154,9 +155,10 @@ internal sealed class MeterWindow
             () => { selection.Older(plugin.Tracker.Current, plugin.Tracker.History); browserOpen = false; });
         Button("newer", new Rect(156, 173, 63, 28), "Newer", !selection.IsLive,
             () => { selection.Newer(plugin.Tracker.History); browserOpen = false; });
-        Button("fights", new Rect(225, 173, 74, 28), "Fights", plugin.Tracker.History.Count > 0,
+        Button("fights", new Rect(225, 173, 74, 28), "Fights", plugin.Tracker.History.Count + plugin.Tracker.Active.Count > 0,
             () => { browserOpen = !browserOpen; browserPage = 0; }, browserOpen);
-        Button("end", new Rect(305, 173, 86, 28), "End fight", plugin.Tracker.Current != null && selection.IsLive, () => plugin.Tracker.Finish("Manual"));
+        Button("end", new Rect(305, 173, 86, 28), "End fight", fight != null && !fight.Complete,
+            () => { if (fight != null) plugin.Tracker.Finish(fight, "Manual"); });
         Button("export", new Rect(397, 173, 105, 28), "Export report", fight != null, () => { if (fight != null) plugin.Export(fight); });
         for (int i = 0; i < Tabs.Length; i++)
         {
@@ -181,10 +183,10 @@ internal sealed class MeterWindow
         Text(new Rect(54, 552, 110, 23), browserOpen ? $"{browserPage + 1} / {BrowserPageCount}" : $"{page + 1} / {pageCount}", 10, Muted);
         Button("page:next", new Rect(163, 552, 31, 23), ">", browserOpen ? browserPage + 1 < BrowserPageCount : page + 1 < pageCount,
             () => { if (browserOpen) browserPage++; else page++; });
-        Text(new Rect(212, 552, 290, 23), browserOpen ? $"{plugin.Tracker.History.Count} / 20 saved fights" :
+        Text(new Rect(212, 552, 290, 23), browserOpen ? $"{plugin.Tracker.Active.Count} active · {plugin.Tracker.History.Count} / 20 saved" :
             fight == null ? "" : $"Unattributed {unknown:N0}   ·   {fight.Events.Count:N0} events", 10, Muted, TextAnchor.MiddleRight);
         Line(582);
-        string interaction = browserOpen ? "INTERACTING  ·  Select a saved fight to inspect it." :
+        string interaction = browserOpen ? "INTERACTING  ·  Select an active or saved fight to inspect it." :
             tab == 4 && fight != null ? "INTERACTING  ·  Click a breakdown row to isolate it. Click again to clear." :
             plugin.WindowLocked.Value ? "INTERACTING  ·  Panel locked. Use Unlock panel to enable dragging." :
             "INTERACTING  ·  Click a player for details. Drag the header to move.";
@@ -226,11 +228,12 @@ internal sealed class MeterWindow
         Text(new Rect(28, y + 3, 294, 38), label, 12, Ink);
         Text(new Rect(325, y + 3, 167, 38), $"{amount:N0} · {hits} hits", 11, Accent, TextAnchor.MiddleRight);
     }
-    private int BrowserPageCount => Math.Max(1, (plugin.Tracker.History.Count + 4) / 5);
+    private int BrowserPageCount => Math.Max(1, (plugin.Tracker.Active.Count + plugin.Tracker.History.Count + 4) / 5);
     private void DrawFightBrowser()
     {
         var history = plugin.Tracker.History;
-        foreach (var id in browserDamage.Keys.Where(id => !history.Any(f => f.Id == id)).ToArray()) browserDamage.Remove(id);
+        var fights = plugin.Tracker.Active.OrderByDescending(f => f.LastCombat).Concat(history).ToArray();
+        foreach (var id in browserDamage.Keys.Where(id => !fights.Any(f => f.Id == id)).ToArray()) browserDamage.Remove(id);
         browserPage = Math.Clamp(browserPage, 0, BrowserPageCount - 1);
         Text(new Rect(24, 250, 140, 18), "WHEN", 9, Muted);
         Text(new Rect(167, 250, 150, 18), "TARGET", 9, Muted);
@@ -238,23 +241,24 @@ internal sealed class MeterWindow
         Text(new Rect(400, 250, 96, 18), "DAMAGE", 9, Muted, TextAnchor.MiddleRight);
         long nowUnix = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         int slot = 0;
-        foreach (var item in history.Skip(browserPage * 5).Take(5))
+        foreach (var item in fights.Skip(browserPage * 5).Take(5))
         {
             float y = 274 + slot++ * 52;
             var area = new Rect(18, y, 484, 48);
             bool active = item.Id == fight?.Id;
             Box(area, active ? new Color32(33, 66, 73, 255) : Surface);
             if (active) Box(new Rect(18, y, 3, 48), Accent);
-            Text(new Rect(28, y + 3, 132, 20), FightClock.Relative(item.RecordedAtUnix, nowUnix), 12, active ? Accent : Ink, bold: active);
+            Text(new Rect(28, y + 3, 132, 20), item.Complete ? FightClock.Relative(item.RecordedAtUnix, nowUnix) : "LIVE · " + FightClock.Relative(item.RecordedAtUnix, nowUnix), 12, active ? Accent : Ink, bold: active);
             Text(new Rect(28, y + 23, 132, 17), DateTimeOffset.FromUnixTimeSeconds(item.RecordedAtUnix).ToLocalTime().ToString("MMM d, yyyy h:mm tt"), 9, Muted);
             Text(new Rect(167, y + 5, 146, 38), item.Title, 12, Ink);
             Text(new Rect(317, y + 5, 80, 38), item.Duration(Plugin.Now).ToString("0.0") + "s", 11, Muted, TextAnchor.MiddleRight);
-            if (!browserDamage.TryGetValue(item.Id, out double damage))
+            if (!item.Complete || !browserDamage.TryGetValue(item.Id, out double damage))
                 browserDamage[item.Id] = damage = CombatTracker.Rows(item).Sum(r => r.Damage);
             Text(new Rect(400, y + 5, 96, 38), damage.ToString("N0"), 12, active ? Accent : Ink, TextAnchor.MiddleRight, active);
             Hit("fight:" + item.Id, area, () =>
             {
-                if (selection.Select(item, history)) { browserOpen = false; page = 0; }
+                if (!item.Complete) { selection.SelectActive(item); browserOpen = false; page = 0; }
+                else if (selection.Select(item, history)) { browserOpen = false; page = 0; }
             });
         }
     }

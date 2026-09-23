@@ -12,12 +12,13 @@ public sealed class CombatTracker
     private readonly Queue<string> originOrder = new Queue<string>();
     private readonly Dictionary<string, CombatEvent> statuses = new Dictionary<string, CombatEvent>();
     private readonly List<CombatEvent> prelude = new List<CombatEvent>();
+    private readonly List<Fight> active = new List<Fight>();
     public Fight? Current { get; private set; }
+    public IReadOnlyList<Fight> Active => active;
     public List<Fight> History { get; } = new List<Fight>();
     public double IdleSeconds { get; set; } = 8;
     public int MaxEvents { get; set; } = 50000;
     public double SeparationDistance { get; set; } = 80;
-    public double SeparationSeconds { get; set; } = 2;
     public string Coverage { get; set; } = "Local observations; multiplayer coverage may be incomplete";
     public event Action<Fight>? Finished;
 
@@ -35,8 +36,8 @@ public sealed class CombatTracker
             origins[key] = e;
             while (originOrder.Count > 4096) origins.Remove(originOrder.Dequeue());
             // Metadata travels separately from game damage. It may arrive after the hit.
-            if (Current != null)
-                foreach (var hit in Current.Events)
+            foreach (var fight in active)
+                foreach (var hit in fight.Events)
                     if (hit.Correlation == e.Correlation && hit.Source.Id == e.Source.Id &&
                         Math.Abs(hit.Time - e.Time) <= (hit.Periodic ? 180 : 2)) Enrich(hit, e);
             return true;
@@ -49,17 +50,19 @@ public sealed class CombatTracker
         }
         bool combat = ((e.Kind == "damage" && (e.Amount > 0 || e.Result == "Immune")) ||
             (e.Kind == "shield" && e.Amount > 0)) && (e.Source.Player || e.Target.Player);
-        if (Current != null && combat && DistantFromCurrent(Current, e)) Finish("Distant combat");
-        if (Current == null && combat)
+        Fight? destination = FindFight(e);
+        if (destination == null && combat)
         {
-            Current = new Fight { Start = e.Time, LastCombat = e.Time, RecordedAtUnix = DateTimeOffset.UtcNow.ToUnixTimeSeconds(), Coverage = Coverage,
+            if (active.Count >= 8) FinishFight(active.OrderBy(f => f.LastCombat).First(), "Active fight limit");
+            destination = new Fight { Start = e.Time, LastCombat = e.Time, RecordedAtUnix = DateTimeOffset.UtcNow.ToUnixTimeSeconds(), Coverage = Coverage,
                 Title = !e.Target.Player && e.Target.Id != "unknown" ? e.Target.Name : "Combat" };
-            foreach (var s in statuses.Values.Where(s => e.Time - s.Time >= 0 && e.Time - s.Time <= 2))
-                Current.Events.Add(new CombatEvent { Id = s.Id + ":seed", Time = e.Time, Kind = "status", Source = s.Source, Statuses = s.Statuses });
-            Current.Events.AddRange(prelude.Where(p => p.Time >= e.Time - 2 && p.Time <= e.Time));
-            prelude.Clear();
+            active.Add(destination);
+            foreach (var s in statuses.Values.Where(s => e.Time - s.Time >= 0 && e.Time - s.Time <= 2 && Nearby(s, e)))
+                destination.Events.Add(new CombatEvent { Id = s.Id + ":seed", Time = e.Time, Kind = "status", Source = s.Source, Statuses = s.Statuses });
+            destination.Events.AddRange(prelude.Where(p => p.Time >= e.Time - 2 && p.Time <= e.Time && Nearby(p, e)));
+            prelude.RemoveAll(p => p.Time < e.Time - 2 || Nearby(p, e));
         }
-        if (Current == null)
+        if (destination == null)
         {
             if (e.Kind == "stamina" || e.Kind == "eitr")
             {
@@ -69,33 +72,50 @@ public sealed class CombatTracker
             }
             return true;
         }
-        if (combat || e.Kind == "death") Current.LastCombat = Math.Max(Current.LastCombat, e.Time);
-        Current.Events.Add(e);
+        if (combat || e.Kind == "death") destination.LastCombat = Math.Max(destination.LastCombat, e.Time);
+        destination.Events.Add(e);
         if (combat)
         {
             if (e.HasPosition)
             {
-                Current.HasCombatPosition = true;
-                Current.LastX = e.X; Current.LastY = e.Y; Current.LastZ = e.Z;
+                destination.HasCombatPosition = true;
+                destination.LastX = e.X; destination.LastY = e.Y; destination.LastZ = e.Z;
             }
-            UpdateTitle(Current);
+            Current = destination;
+            UpdateTitle(destination);
         }
-        if (e.Kind == "death" && e.Boss && Current.Events.Any(hit => hit.Kind == "damage" && hit.Target.Id == e.Target.Id))
+        if (e.Kind == "death" && e.Boss && destination.Events.Any(hit => hit.Kind == "damage" && hit.Target.Id == e.Target.Id))
         {
-            Finish("Boss defeated");
+            FinishFight(destination, "Boss defeated");
             return true;
         }
-        if (Current.Events.Count >= MaxEvents) Finish("Event limit");
+        if (destination.Events.Count >= MaxEvents) FinishFight(destination, "Event limit");
         return true;
     }
 
     private static string OriginKey(CombatEvent e) => e.Source.Id + ":" + e.Correlation;
-    private bool DistantFromCurrent(Fight fight, CombatEvent e)
+    private bool Nearby(CombatEvent a, CombatEvent b)
     {
-        if (!fight.HasCombatPosition || !e.HasPosition || e.Time - fight.LastCombat < SeparationSeconds) return false;
-        double dx = e.X - fight.LastX, dy = e.Y - fight.LastY, dz = e.Z - fight.LastZ;
+        if (!a.HasPosition || !b.HasPosition) return true;
+        return DistanceSquared(a.X, a.Y, a.Z, b.X, b.Y, b.Z) < SeparationDistance * SeparationDistance;
+    }
+    private static double DistanceSquared(double x, double y, double z, double x2, double y2, double z2)
+    {
+        double dx = x - x2, dy = y - y2, dz = z - z2;
+        return dx * dx + dy * dy + dz * dz;
+    }
+    private Fight? FindFight(CombatEvent e)
+    {
+        if (active.Count == 0) return null;
+        if (!e.HasPosition) return Current;
         double distance = Math.Max(1, SeparationDistance);
-        return dx * dx + dy * dy + dz * dz >= distance * distance;
+        var nearby = active.Where(f => f.HasCombatPosition &&
+            DistanceSquared(e.X, e.Y, e.Z, f.LastX, f.LastY, f.LastZ) < distance * distance).ToArray();
+        if (nearby.Length == 0) return active.FirstOrDefault(f => !f.HasCombatPosition && f == Current);
+        // A known enemy stays with its encounter when nearby groups overlap.
+        return nearby.OrderByDescending(f => f.Events.Any(hit => hit.Kind == "damage" &&
+                (!e.Target.Player && hit.Target.Id == e.Target.Id || !e.Source.Player && hit.Source.Id == e.Source.Id)))
+            .ThenBy(f => DistanceSquared(e.X, e.Y, e.Z, f.LastX, f.LastY, f.LastZ)).First();
     }
     private static void Enrich(CombatEvent hit, CombatEvent origin)
     {
@@ -105,21 +125,29 @@ public sealed class CombatTracker
 
     public void Tick(double now)
     {
-        if (Current == null) return;
-        if (now - Current.LastCombat >= IdleSeconds) Finish("Idle");
-        else if (now - Current.Start >= 1800) Finish("30 minute segment");
+        foreach (var fight in active.ToArray())
+        {
+            if (now - fight.LastCombat >= IdleSeconds) FinishFight(fight, "Idle");
+            else if (now - fight.Start >= 1800) FinishFight(fight, "30 minute segment");
+        }
     }
 
     public void Finish(string reason)
     {
-        if (Current == null) return;
-        var completed = Current;
+        if (Current != null) FinishFight(Current, reason);
+    }
+
+    public void Finish(Fight fight, string reason) => FinishFight(fight, reason);
+
+    private void FinishFight(Fight completed, string reason)
+    {
+        if (!active.Remove(completed)) return;
         completed.Complete = true;
         completed.End = completed.LastCombat;
         completed.EndReason = reason;
         // Recovery after the last hit belongs outside the encounter.
         completed.Events.RemoveAll(e => e.Time > completed.End);
-        Current = null;
+        if (Current == completed) Current = active.OrderByDescending(f => f.LastCombat).FirstOrDefault();
         History.Insert(0, completed);
         if (History.Count > 20) History.RemoveAt(History.Count - 1);
         Finished?.Invoke(completed);
@@ -127,7 +155,7 @@ public sealed class CombatTracker
 
     public void ResetSession()
     {
-        Finish("Session ended");
+        foreach (var fight in active.ToArray()) FinishFight(fight, "Session ended");
         seen.Clear(); seenOrder.Clear(); origins.Clear(); originOrder.Clear(); statuses.Clear(); prelude.Clear();
     }
 

@@ -180,15 +180,44 @@ tests.Add(("Late metadata enriches periodic damage beyond the direct-hit window"
     var saved=tracker.Current!.Events.Single(e=>e.Periodic);Check(saved.Weapon=="Fire staff","Periodic weapon metadata missing");
     Check(saved.Ability=="Fire damage over time","Periodic ability label was overwritten");
 }));
-tests.Add(("Distant combat after a gap starts a separate encounter", () => {
-    var tracker=new CombatTracker{IdleSeconds=30,SeparationDistance=80,SeparationSeconds=2};
+tests.Add(("Distant combat remains separate while both groups are active", () => {
+    var tracker=new CombatTracker{IdleSeconds=30,SeparationDistance=80};
     var first=Event(10,20);first.HasPosition=true;first.X=0;tracker.Add(first);
     var nearby=Event(13,20);nearby.HasPosition=true;nearby.X=50;tracker.Add(nearby);
     Check(tracker.History.Count==0,"Nearby combat was split");
     var distant=Event(16,20);distant.HasPosition=true;distant.X=150;tracker.Add(distant);
-    Check(tracker.History.Count==1&&tracker.History[0].EndReason=="Distant combat","Distant combat did not split");
-    Equal(CombatTracker.Rows(tracker.History[0]).Single().Damage,40,"Previous encounter damage");
-    Equal(CombatTracker.Rows(tracker.Current!).Single().Damage,20,"New encounter damage");
+    Check(tracker.Active.Count==2&&tracker.History.Count==0,"Distant encounter was not kept active");
+    Equal(CombatTracker.Rows(tracker.Active.Single(f=>f.Id!=tracker.Current!.Id)).Single().Damage,40,"First encounter damage");
+    Equal(CombatTracker.Rows(tracker.Current!).Single().Damage,20,"Second encounter damage");
+}));
+tests.Add(("Interleaved groups route hits, samples and boss deaths independently", () => {
+    var boss=new Actor{Id="entity:elder",Name="Elder"};var boar=new Actor{Id="entity:boar",Name="Boar"};
+    var tracker=new CombatTracker{IdleSeconds=8,SeparationDistance=80};
+    CombatEvent At(CombatEvent e,double x){e.HasPosition=true;e.X=x;return e;}
+    tracker.Add(At(Event(10,30,target:boss),0));
+    tracker.Add(At(Event(10.2,20,source:b,target:boar),200));
+    tracker.Add(At(Event(11,10,target:boss),0));
+    tracker.Add(At(Event(11.2,5,source:b,target:boar),200));
+    var sample=At(Event(11.3,2,"stamina",b,boar),200);tracker.Add(sample);
+    var death=At(Event(12,0,"death",new Actor(),boss),0);death.Boss=true;tracker.Add(death);
+    Check(tracker.Active.Count==1&&tracker.History.Count==1,"Boss death closed another group's fight");
+    Check(tracker.History[0].Title=="Elder"&&tracker.History[0].EndReason=="Boss defeated","Wrong encounter closed");
+    Equal(CombatTracker.Rows(tracker.History[0]).Single().Damage,40,"Boss damage mixed");
+    Equal(CombatTracker.Rows(tracker.Active[0]).Single().Damage,25,"Boar damage mixed");
+    Check(tracker.Active[0].Events.Contains(sample)&&!tracker.History[0].Events.Contains(sample),"Resource sample crossed groups");
+    tracker.Tick(20);Check(tracker.Active.Count==0&&tracker.History.Count==2,"Idle group did not finish");
+}));
+tests.Add(("Active encounter limit and session reset close every fight", () => {
+    var tracker=new CombatTracker{IdleSeconds=100,SeparationDistance=80};
+    for(int i=0;i<9;i++)
+    {
+        var hit=Event(10+i,10,target:new Actor{Id="entity:"+i,Name="Enemy "+i});
+        hit.HasPosition=true;hit.X=i*200;tracker.Add(hit);
+    }
+    Check(tracker.Active.Count==8&&tracker.History.Count==1,"Active fight limit failed");
+    Check(tracker.History[0].EndReason=="Active fight limit","Wrong encounter evicted");
+    tracker.ResetSession();Check(tracker.Active.Count==0&&tracker.Current==null,"Session left fights active");
+    Check(tracker.History.Count==9&&tracker.History.All(f=>f.Complete),"Session did not save all active fights");
 }));
 tests.Add(("A recorded boss death closes its encounter", () => {
     var boss=new Actor{Id="entity:boss",Name="The Elder"};var tracker=new CombatTracker{IdleSeconds=30};

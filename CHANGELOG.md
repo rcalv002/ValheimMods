@@ -1,3 +1,10 @@
+# 0.2.9 — concurrent encounters
+
+- Keep up to eight spatially separate fights active at once, routing interleaved damage and positioned resource/status samples to the matching fight.
+- Close each fight independently for idle time, boss death, event limit, and session reset.
+- Show active fights above saved fights in the Fights browser and allow either live fight to be selected.
+- Remove the obsolete quiet-gap setting; distance alone separates groups, while unpositioned events still use the most recent fight.
+
 # 0.2.8 — per-fight damage sources
 
 - Mark outgoing damage as owner-resolved, displayed-number fallback, or unspecified, while recording relay delivery separately.

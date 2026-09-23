@@ -110,7 +110,26 @@ browserPlugin.Tracker.Finish("test");BrowserDraw();BrowserClick("Live");BrowserC
 Check(Has("Owner-resolved")&&Has("Displayed-number estimate")&&Has("Unspecified / older report")&&
     Has("Relay transport: 10 damage · 1 hits"),"Fight sources did not distinguish measurement and relay delivery");
 File.WriteAllText(Path.Combine(root,"artifacts","sources-preview.svg"),GUI.Svg());
-System.Console.WriteLine("PASS Production overlay: source provenance, fight browser and 20-fight paging, Older/Newer/Live, target filters, DPS series, breakdowns, tabs, scaled hit targets, export and dragging");
+var concurrentPlugin=new Plugin();
+var bear=new CombatEvent{Id="concurrent:bear",Time=2000,Amount=30,Source=actor,Target=new Actor{Id="entity:bear",Name="Bear"},HasPosition=true,X=0};
+var boar=new CombatEvent{Id="concurrent:boar",Time=2001,Amount=20,Source=actor,Target=new Actor{Id="entity:boar",Name="Boar"},HasPosition=true,X=200};
+concurrentPlugin.Tracker.Add(bear);concurrentPlugin.Tracker.Add(boar);
+var concurrentWindow=new MeterWindow(concurrentPlugin);
+void ConcurrentDraw(){concurrentWindow.Refresh();GUI.Commands.Clear();concurrentWindow.Draw();}
+void ConcurrentClick(string label)
+{
+    var r=GUI.Commands.Single(c=>c.Text==label).Area;
+    ZInput.pointerPosition=new Vector3(r.x+r.width/2,Screen.height-r.y-r.height/2);
+    ZInput.Down=true;ZInput.Held=true;concurrentWindow.HandleInput();
+    ZInput.Down=false;ZInput.Held=false;ZInput.Up=true;concurrentWindow.HandleInput();ZInput.Up=false;ConcurrentDraw();
+}
+ConcurrentDraw();Check(Has("Boar"),"Most recent live encounter not shown");
+ConcurrentClick("Fights");Check(Has("Bear")&&Has("Boar")&&Has("2 active · 0 / 20 saved"),"Live encounter browser did not show both groups");
+ConcurrentClick("Bear");Check(Has("Bear")&&Has("LIVE")&&Has("2 active · 0 saved"),"Choosing a different active encounter failed");
+File.WriteAllText(Path.Combine(root,"artifacts","concurrent-preview.svg"),GUI.Svg());
+ConcurrentClick("End fight");Check(concurrentPlugin.Tracker.Active.Count==1&&concurrentPlugin.Tracker.History.Count==1&&Has("HISTORY"),"Ending selected live fight affected another group");
+ConcurrentClick("Live");Check(Has("Boar")&&Has("LIVE"),"Live did not return to the remaining active encounter");
+System.Console.WriteLine("PASS Production overlay: concurrent encounters, source provenance, fight browser and 20-fight paging, Older/Newer/Live, target filters, DPS series, breakdowns, tabs, scaled hit targets, export and dragging");
 System.Console.WriteLine("Wrote artifacts/overlay-preview.svg (headless layout preview, not an in-game screenshot).");
 }
 catch(Exception ex)
