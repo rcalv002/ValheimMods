@@ -1,3 +1,10 @@
+# 0.2.14 — connected fallback reconciliation
+
+- Keep personal damage-number fallback available for remote-owned enemies even while connected to a modded host, covering enemies owned by a peer that does not report telemetry.
+- Hold fallback estimates at the host for two seconds; an owner-resolved hit with the same attacker, target, hit fingerprint, and nearby position suppresses one estimate in either arrival order.
+- Bound the pending/recent hit windows and expose pending, suppressed, and overflow counts in local diagnostics.
+- Test the production relay's owner-first, fallback-first, and no-owner flows, plus one-to-one matching and spatial separation.
+
 # 0.2.13 — group capture boundaries
 
 - Close the active encounter when disabling an active relay or enabling one on the host; clients keep local capture until a modded host responds, then start a new segment.

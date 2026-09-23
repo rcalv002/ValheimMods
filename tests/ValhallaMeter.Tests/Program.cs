@@ -189,6 +189,42 @@ tests.Add(("Zero and malformed damage text cannot create fallback damage", () =>
     matcher.Add(new PendingDamage { Time=11, X=0, Y=0, Z=0, Source=a, Target=enemy });
     Check(matcher.Match(11.1,0,0,0,double.NaN)==null,"Non-finite damage matched");
 }));
+tests.Add(("Owner-resolved hits supersede fallback estimates in either arrival order", () => {
+    var reconcile=new FallbackReconciler();
+    CombatEvent Hit(double time,string mode,string correlation) { var e=Event(time,10);e.CaptureMode=mode;e.Correlation=correlation;return e; }
+    var estimate=Hit(10,"fallback","hit-a");
+    Check(reconcile.Offer(estimate,10)==FallbackOfferResult.Queued,"Estimate was not held");
+    reconcile.ObserveOwner(Hit(10.2,"owner","hit-a"),10.2);
+    Check(reconcile.ReleaseReady(12.5).Length==0&&reconcile.Suppressed==1,"Late owner did not suppress estimate");
+    reconcile.ObserveOwner(Hit(20,"owner","hit-b"),20);
+    Check(reconcile.Offer(Hit(20.2,"fallback","hit-b"),20.2)==FallbackOfferResult.Suppressed,
+        "Earlier owner did not suppress estimate");
+    Check(reconcile.Suppressed==2&&reconcile.PendingCount==0,"Suppressed estimate remained pending");
+}));
+tests.Add(("Fallback reconciliation is one-to-one, spatially scoped, and bounded", () => {
+    var reconcile=new FallbackReconciler { MaxPending=2 };
+    CombatEvent Hit(double time,string mode,string correlation,double x) { var e=Event(time,10);e.CaptureMode=mode;
+        e.Correlation=correlation;e.HasPosition=true;e.X=x;return e; }
+    var first=Hit(30,"fallback","repeat",0);var second=Hit(30.1,"fallback","repeat",0);
+    Check(reconcile.Offer(first,30)==FallbackOfferResult.Queued&&
+        reconcile.Offer(second,30.1)==FallbackOfferResult.Queued,"Repeated hits were not held separately");
+    reconcile.ObserveOwner(Hit(30.2,"owner","repeat",0),30.2);
+    var left=reconcile.ReleaseReady(32.2);
+    Check(left.Length==1&&left[0].Id==first.Id&&reconcile.Suppressed==1,
+        "One owner report suppressed more than one repeated hit");
+    var distant=Hit(40,"fallback","distant",0);
+    Check(reconcile.Offer(distant,40)==FallbackOfferResult.Queued,"Distant estimate was not held");
+    reconcile.ObserveOwner(Hit(40.2,"owner","distant",20),40.2);
+    Check(reconcile.ReleaseReady(42.2).Single().Id==distant.Id,"Distant owner report suppressed a different hit");
+    var periodic=Hit(50,"fallback","periodic",0);
+    reconcile.Offer(periodic,50);var tick=Hit(50.2,"owner","periodic",0);tick.Periodic=true;
+    reconcile.ObserveOwner(tick,50.2);
+    Check(reconcile.ReleaseReady(52.2).Single().Id==periodic.Id,"Periodic tick suppressed a direct-hit estimate");
+    reconcile.MaxPending=1;
+    reconcile.Offer(Hit(60,"fallback","one",0),60);
+    Check(reconcile.Offer(Hit(60.1,"fallback","two",0),60.1)==FallbackOfferResult.Overflow&&
+        reconcile.Overflowed==1&&reconcile.Clear()==1,"Pending fallback bound failed");
+}));
 tests.Add(("Target views isolate damage, incoming hits and duration", () => {
     var troll=new Actor{Id="entity:troll",Name="Troll"};var deer=new Actor{Id="entity:deer",Name="Deer"};
     var t=new CombatTracker{IdleSeconds=30};t.Add(Event(10,100,target:troll));t.Add(Event(11,20,source:troll,target:a));

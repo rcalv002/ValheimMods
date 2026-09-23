@@ -27,6 +27,9 @@ public sealed class RelayDiagnostics
     public int HelloAttempts { get; set; }
     public double? SecondsSinceWelcome { get; set; }
     public int QueuedEvents { get; set; }
+    public int PendingFallbackEvents { get; set; }
+    public long SuppressedFallbackEvents { get; set; }
+    public long OverflowFallbackEvents { get; set; }
     public long LocallyPublishedEvents { get; set; }
     public long LocallyPublishedDamageEvents { get; set; }
     public long DispatchedEventCopies { get; set; }

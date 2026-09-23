@@ -10,7 +10,7 @@ using ValhallaMeter.Core;
 namespace ValhallaMeter;
 
 [DefaultExecutionOrder(-10000)]
-[BepInPlugin("local.valhallameter", "Valhalla Meter", "0.2.13")]
+[BepInPlugin("local.valhallameter", "Valhalla Meter", "0.2.14")]
 public sealed class Plugin : BaseUnityPlugin
 {
     internal static Plugin? Instance;
@@ -73,7 +73,7 @@ public sealed class Plugin : BaseUnityPlugin
         {
             harmony = new Harmony("local.valhallameter");
             harmony.PatchAll(typeof(Plugin).Assembly);
-            Logger.LogInfo("Valhalla Meter 0.2.13 loaded. F7 shows/hides; F8 enables interaction. Logs: " + logs.Directory);
+            Logger.LogInfo("Valhalla Meter 0.2.14 loaded. F7 shows/hides; F8 enables interaction. Logs: " + logs.Directory);
         }
         catch (Exception ex)
         {
@@ -90,7 +90,7 @@ public sealed class Plugin : BaseUnityPlugin
             sync.Update();
             Tracker.Coverage = LocalDamageFallbackEnabled ?
                 "Local observations; personal outgoing damage includes displayed-number fallback" :
-                "Group: owner-resolved observations from the modded relay";
+                "Group: owner-resolved observations with reconciled personal estimates";
             Tracker.IdleSeconds = idle.Value;
             Tracker.SeparationDistance = separationDistance.Value;
             Tracker.Tick(Now);
@@ -150,7 +150,7 @@ public sealed class Plugin : BaseUnityPlugin
     {
         var snapshot = new DiagnosticSnapshot
         {
-            ModVersion = "0.2.13",
+            ModVersion = "0.2.14",
             CreatedAtUnix = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
             ActiveFights = Tracker.Active.Count,
             SavedFights = Tracker.History.Count,

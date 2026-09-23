@@ -17,6 +17,7 @@ internal sealed class GroupSync
     private readonly Dictionary<long, (double Window, int Count)> rates = new Dictionary<long, (double, int)>();
     private readonly List<CombatEvent> outgoing = new List<CombatEvent>();
     private readonly RelayHandshake handshake = new RelayHandshake();
+    private readonly FallbackReconciler fallbacks = new FallbackReconciler();
     private ZRoutedRpc? rpc;
     private bool? previousGroupEnabled;
     private double lastWelcome = -100;
@@ -46,6 +47,9 @@ internal sealed class GroupSync
         HelloAttempts = handshake.Attempts,
         SecondsSinceWelcome = plugin.GroupEnabled && Connected ? Math.Max(0, Clock - lastWelcome) : (double?)null,
         QueuedEvents = outgoing.Count,
+        PendingFallbackEvents = fallbacks.PendingCount,
+        SuppressedFallbackEvents = fallbacks.Suppressed,
+        OverflowFallbackEvents = fallbacks.Overflowed,
         LocallyPublishedEvents = locallyPublishedEvents,
         LocallyPublishedDamageEvents = locallyPublishedDamageEvents,
         DispatchedEventCopies = dispatchedEventCopies,
@@ -79,6 +83,7 @@ internal sealed class GroupSync
             plugin.Tracker.ResetSession();
             rpc = ZRoutedRpc.instance;
             droppedQueuedEvents += outgoing.Count;
+            droppedQueuedEvents += fallbacks.Clear();
             members.Clear(); rates.Clear(); outgoing.Clear();
             Connected = false; Peers = 0; handshake.Reset(Clock); lastWelcome = -100;
             Capture.ClearFallbacks();
@@ -95,6 +100,7 @@ internal sealed class GroupSync
             {
                 Connected = false; Peers = 0;
                 droppedQueuedEvents += outgoing.Count;
+                droppedQueuedEvents += fallbacks.Clear();
                 outgoing.Clear();
                 members.Clear(); rates.Clear(); handshake.Reset(Clock);
             }
@@ -103,6 +109,7 @@ internal sealed class GroupSync
         if (IsHost)
         {
             foreach (long id in members.Where(p => Clock - p.Value > 30).Select(p => p.Key).ToArray()) { members.Remove(id); rates.Remove(id); }
+            CommitFallbacks();
         }
         else
         {
@@ -164,13 +171,39 @@ internal sealed class GroupSync
         {
             if (IsHost)
             {
+                if (IsFallback(e)) { HoldFallback(e); return; }
                 plugin.Tracker.Coverage = "Group: host and reporting clients; unmodded owners may be missing";
-                plugin.Accept(e);
+                if (plugin.Accept(e)) fallbacks.ObserveOwner(e, Clock);
             }
             if (outgoing.Count < 4096) outgoing.Add(e);
             else { droppedQueuedEvents++; plugin.SetIssue("Telemetry queue full: some group events were lost"); }
         }
         else plugin.Accept(e);
+    }
+
+    private static bool IsFallback(CombatEvent e) => e.Kind == "damage" && e.CaptureMode == "fallback" && e.Source.Player;
+
+    private void HoldFallback(CombatEvent e)
+    {
+        if (fallbacks.Offer(e, Clock) != FallbackOfferResult.Overflow) return;
+        droppedQueuedEvents++;
+        plugin.SetIssue("Fallback reconciliation queue full: an estimated hit was lost");
+    }
+
+    private void CommitFallbacks()
+    {
+        foreach (var e in fallbacks.ReleaseReady(Clock))
+        {
+            plugin.Tracker.Coverage = "Group: host and reporting clients; unmodded owners may be missing";
+            if (!plugin.Accept(e)) { duplicateRemoteEvents++; continue; }
+            if (e.Relayed)
+            {
+                acceptedRemoteEvents++;
+                acceptedRemoteDamageEvents++;
+            }
+            if (outgoing.Count < 4096) outgoing.Add(e);
+            else { droppedQueuedEvents++; plugin.SetIssue("Relay queue full: some events were lost"); }
+        }
     }
 
     private void Flush()
@@ -208,11 +241,13 @@ internal sealed class GroupSync
             if (IsHost) e.Time = now;
             else if (Math.Abs(e.Time - now) > 30) { staleRemoteEvents++; continue; }
             e.Relayed = true;
+            if (IsHost && IsFallback(e)) { HoldFallback(e); continue; }
             if (!plugin.Accept(e)) { duplicateRemoteEvents++; continue; }
             acceptedRemoteEvents++;
             if (e.Kind == "damage") acceptedRemoteDamageEvents++;
             if (IsHost)
             {
+                fallbacks.ObserveOwner(e, Clock);
                 if (outgoing.Count < 4096) outgoing.Add(e);
                 else { droppedQueuedEvents++; plugin.SetIssue("Relay queue full: some events were lost"); }
             }

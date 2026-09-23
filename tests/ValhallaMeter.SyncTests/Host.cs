@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Newtonsoft.Json;
 using ValhallaMeter.Core;
 
 namespace UnityEngine
@@ -30,6 +31,10 @@ public sealed class ZRoutedRpc
     public void InvokeRoutedRPC(long recipient, string name, params object[] args) => Calls.Add((recipient, name, args));
     public void DeliverWelcome(long sender, int peers) =>
         ((Action<long,int,int>)handlers["ValhallaMeter_Welcome_v1"])(sender, 1, peers);
+    public void DeliverHello(long sender) =>
+        ((Action<long,int>)handlers["ValhallaMeter_Hello_v1"])(sender, 1);
+    public void DeliverEvents(long sender, params CombatEvent[] events) =>
+        ((Action<long,string>)handlers["ValhallaMeter_Events_v1"])(sender, JsonConvert.SerializeObject(events));
 }
 
 namespace ValhallaMeter

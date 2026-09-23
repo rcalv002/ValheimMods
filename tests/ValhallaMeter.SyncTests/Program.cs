@@ -86,7 +86,42 @@ try
     Check(hostPlugin.Tracker.Current==null&&hostPlugin.Tracker.History[0].Events.Any(e=>e.Id=="host-local-hit")&&
         !hostPlugin.Tracker.History[0].Events.Any(e=>e.Id=="host-relay-hit"),
         "Host did not separate its local fight when group sync was enabled");
-    Console.WriteLine("PASS Production relay: retries, timeout recovery, host switch, and group/local fight boundaries");
+
+    rpc.DeliverHello(9);
+    CombatEvent Combat(string id,double time,string mode,string key) { var e=Hit(id,time);e.CaptureMode=mode;
+        e.Correlation=key;return e; }
+    UnityEngine.Time.realtimeSinceStartupAsDouble=113;
+    rpc.DeliverEvents(9,Combat("fallback-first",113,"fallback","attack-a"));
+    Check(hostPlugin.Tracker.Current==null&&hostSync.Diagnostics().PendingFallbackEvents==1,
+        "Host accepted fallback before owner reconciliation window");
+    UnityEngine.Time.realtimeSinceStartupAsDouble=113.4;
+    rpc.DeliverEvents(9,Combat("owner-after",113.4,"owner","attack-a"));
+    Tick(hostSync,115.5);
+    Check(hostPlugin.Tracker.Current?.Events.Count(e=>e.Kind=="damage")==1&&
+        hostPlugin.Tracker.Current.Events[0].Id=="owner-after"&&
+        hostSync.Diagnostics().SuppressedFallbackEvents==1,
+        "Host double-counted fallback followed by owner report");
+    UnityEngine.Time.realtimeSinceStartupAsDouble=120;
+    rpc.DeliverEvents(9,Combat("owner-before",120,"owner","attack-b"));
+    UnityEngine.Time.realtimeSinceStartupAsDouble=120.2;
+    rpc.DeliverEvents(9,Combat("fallback-after",120.2,"fallback","attack-b"));
+    Check(hostSync.Diagnostics().SuppressedFallbackEvents==2&&
+        hostPlugin.Tracker.Current?.Events.Count(e=>e.Kind=="damage")==2,
+        "Host double-counted owner report followed by fallback");
+    UnityEngine.Time.realtimeSinceStartupAsDouble=130;
+    rpc.DeliverEvents(9,Combat("fallback-only",130,"fallback","attack-c"));
+    Check(hostSync.Diagnostics().PendingFallbackEvents==1,"Unreported-owner estimate was not held");
+    Tick(hostSync,132.1);
+    Check(hostPlugin.Tracker.Current?.Events.Any(e=>e.Id=="fallback-only")==true&&
+        hostSync.Diagnostics().PendingFallbackEvents==0&&
+        hostSync.Diagnostics().AcceptedRemoteDamageEvents==3,
+        "Unreported-owner fallback was not committed and counted after hold");
+    var forwarded=rpc.Calls.Where(c=>c.Name=="ValhallaMeter_Events_v1"&&c.Recipient==9)
+        .Select(c=>(string)c.Args[0]).ToArray();
+    Check(forwarded.Any(json=>json.Contains("fallback-only"))&&
+        !forwarded.Any(json=>json.Contains("fallback-first")||json.Contains("fallback-after")),
+        "Host forwarded a suppressed estimate or failed to forward an unreported hit");
+    Console.WriteLine("PASS Production relay: retries, boundaries, and owner/fallback reconciliation");
 }
 catch(Exception ex)
 {

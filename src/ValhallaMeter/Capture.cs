@@ -110,7 +110,7 @@ internal static class Capture
             Correlation = Fingerprint(target, hit), Weapon = origin.Weapon, Ability = origin.Ability };
         var plugin = Plugin.Instance;
         plugin?.Publish(e);
-        if (plugin != null && plugin.LocalDamageFallbackEnabled && origin.Character == Player.m_localPlayer && !target.IsOwner())
+        if (plugin != null && origin.Character == Player.m_localPlayer && !target.IsOwner())
         {
             var point = hit.m_point;
             Fallbacks.Add(new PendingDamage { Time = Plugin.Now, X = point.x, Y = point.y, Z = point.z,
@@ -121,7 +121,7 @@ internal static class Capture
     internal static void DamageText(UnityEngine.Vector3 point, string text)
     {
         var plugin = Plugin.Instance;
-        if (plugin == null || !plugin.LocalDamageFallbackEnabled ||
+        if (plugin == null ||
             !double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double amount)) return;
         var hit = Fallbacks.Match(Plugin.Now, point.x, point.y, point.z, amount);
         if (hit != null) plugin.Publish(hit);
