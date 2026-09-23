@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace TargetCall;
 
-[BepInPlugin("local.targetcall", "Target Call", "0.1.1")]
+[BepInPlugin("local.targetcall", "Target Call", "0.1.2")]
 public sealed class Plugin : BaseUnityPlugin
 {
     private static Plugin? instance;
@@ -22,19 +22,21 @@ public sealed class Plugin : BaseUnityPlugin
     private void Awake()
     {
         instance = this;
-        callKey = Config.Bind("Controls", "CallKey", new KeyboardShortcut(KeyCode.F6),
-            "Call the hostile creature under the crosshair; repeat on your call to clear it. F6 with no creature also clears your own call.");
-        takeKey = Config.Bind("Controls", "TakeKey", new KeyboardShortcut(KeyCode.F6, KeyCode.LeftShift),
+        callKey = Config.Bind("Controls", "CallKey", new KeyboardShortcut(KeyCode.C),
+            "Call the hostile creature under the crosshair; repeat on your call to clear it. C with no creature also clears your own call.");
+        takeKey = Config.Bind("Controls", "TakeKey", new KeyboardShortcut(KeyCode.Z),
             "Take or release the shared call as your local focus. Taking does not aim attacks or turn the camera.");
-        // Migrate the 0.1.0 defaults: T also opens Valheim's emote panel.
-        if (callKey.Value.MainKey == KeyCode.T && callKey.Value.Modifiers.SequenceEqual(new[] { KeyCode.LeftControl }))
-            callKey.Value = new KeyboardShortcut(KeyCode.F6);
-        if (takeKey.Value.MainKey == KeyCode.T && !takeKey.Value.Modifiers.Any())
-            takeKey.Value = new KeyboardShortcut(KeyCode.F6, KeyCode.LeftShift);
+        // Migrate only the original 0.1.0 and 0.1.1 default bindings.
+        if ((callKey.Value.MainKey == KeyCode.T && callKey.Value.Modifiers.SequenceEqual(new[] { KeyCode.LeftControl })) ||
+            (callKey.Value.MainKey == KeyCode.F6 && !callKey.Value.Modifiers.Any()))
+            callKey.Value = new KeyboardShortcut(KeyCode.C);
+        if ((takeKey.Value.MainKey == KeyCode.T && !takeKey.Value.Modifiers.Any()) ||
+            (takeKey.Value.MainKey == KeyCode.F6 && takeKey.Value.Modifiers.SequenceEqual(new[] { KeyCode.LeftShift })))
+            takeKey.Value = new KeyboardShortcut(KeyCode.Z);
         markerDistance = Config.Bind("Display", "MarkerDistance", 80f,
             new ConfigDescription("Maximum distance for the on-screen target marker.", new AcceptableValueRange<float>(15f, 150f)));
         sync = new TargetSync();
-        Logger.LogInfo("Target Call 0.1.1 loaded. F6 calls; Left Shift+F6 takes the shared target.");
+        Logger.LogInfo("Target Call 0.1.2 loaded. C calls; Z takes the shared target.");
     }
 
     private void Update()
