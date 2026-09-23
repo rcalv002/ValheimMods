@@ -157,6 +157,23 @@ tests.Add(("DPS histogram preserves damage across elapsed-time buckets", () => {
     var filtered=CombatTracker.DpsHistogram(fight,a.Id,"",4,4,e=>e.Time<2?e.Amount:0);
     Equal(filtered.Sum()*(CombatTracker.Duration(fight,4,"")/filtered.Length),30,"Filtered histogram changed selected damage");
 }));
+tests.Add(("Timeline marks selected player deaths, boss kills and series-specific spikes", () => {
+    var boss=new Actor{Id="entity:timeline-boss",Name="The Elder"};
+    var fight=new Fight{Start=0,End=10,LastCombat=10,Complete=true};
+    fight.Events.Add(Event(0.2,10,target:boss));fight.Events.Add(Event(1.2,10,target:boss));
+    var burst=Event(8.2,100,target:boss);burst.Weapon="Mace";fight.Events.Add(burst);
+    fight.Events.Add(Event(9,0,"death",new Actor(),a));
+    fight.Events.Add(Event(9.2,0,"death",new Actor(),b));
+    var kill=Event(10,0,"death",new Actor(),boss);kill.Boss=true;fight.Events.Add(kill);
+    var markers=FightTimeline.Markers(fight,a.Id,"",10,10);
+    Check(markers.Count(m=>m.Kind=="death")==1&&markers.Single(m=>m.Kind=="death").Label.Contains("Astrid"),"Player death scope failed");
+    Check(markers.Count(m=>m.Kind=="boss")==1&&markers.Single(m=>m.Kind=="boss").Time==10,"Boss kill marker missing");
+    var spike=markers.Single(m=>m.Kind=="spike");Equal(spike.Time,8.5,"Spike bucket time");Equal(spike.Value,100,"Spike DPS");
+    var filtered=FightTimeline.Markers(fight,a.Id,"",10,10,e=>e.Weapon=="Mace"?e.Amount:0);
+    Check(filtered.Single(m=>m.Kind=="spike").Value==100,"Selected damage series changed spike");
+    Check(FightTimeline.Markers(fight,b.Id,"",10,10).Any(m=>m.Kind=="death"&&m.Label.Contains("Bjorn")),"Other player's death missing");
+    Check(FightTimeline.Markers(fight,a.Id,boss.Id,10,10).Any(m=>m.Kind=="boss"&&m.Time==10),"Target filter hid boss death");
+}));
 tests.Add(("Periodic damage is split across applications without inventing attribution", () => {
     var dots=new PeriodicDamageAttributor();var target="entity:troll";
     dots.Apply(new PeriodicDamageApplication{Time=1,TargetId=target,DamageType="Fire",RawAmount=60,Source=a,Correlation="a"},false);
@@ -317,7 +334,7 @@ string root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../
 string game = args.FirstOrDefault() ?? @"C:\Program Files (x86)\Steam\steamapps\common\Valheim";
 tests.Add(("Offline report exposes selectable chart series and hit results", () => {
     string template=File.ReadAllText(Path.Combine(root,"src","ValhallaMeter","report.html"));
-    foreach(string marker in new[]{"id=\"chartPlayer\"","id=\"chartTarget\"","id=\"chartSeries\"","id=\"charttip\"","id=\"results\"","id=\"sources\"","'Capture'","'Delivery'","'Result'"})
+    foreach(string marker in new[]{"id=\"chartPlayer\"","id=\"chartTarget\"","id=\"chartSeries\"","id=\"charttip\"","id=\"results\"","id=\"sources\"","drawChartMarkers","Timeline markers","'Capture'","'Delivery'","'Result'"})
         Check(template.Contains(marker),"Missing report control: "+marker);
     Check(template.Contains("textContent")&&!template.Contains("innerHTML"),"Report bypasses safe text rendering");
 }));

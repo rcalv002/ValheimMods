@@ -220,6 +220,8 @@ public sealed class CombatTracker
             var times = fight.Events.Where(e => e.Kind == "damage" && (e.Source.Id == targetId || e.Target.Id == targetId))
                 .Select(e => e.Time).ToArray();
             if (times.Length > 0) { start = times.Min(); end = times.Max(); }
+            var death = fight.Events.Where(e => e.Kind == "death" && e.Target.Id == targetId).Select(e => e.Time);
+            if (times.Length > 0 && death.Any()) end = Math.Max(end, death.Max());
         }
         if (!CombatEvent.Finite(start) || !CombatEvent.Finite(end)) return (0, 1);
         return (start, Math.Max(start + 1, end));

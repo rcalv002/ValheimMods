@@ -470,6 +470,8 @@ internal sealed class MeterWindow
         var plot = new Rect(54, 306, 448, 104);
         Box(plot, new Color32(19, 28, 36, 255));
         for (int i = 1; i < 4; i++) Box(new Rect(plot.x, plot.y + i * plot.height / 4, plot.width, 1), Border);
+        var range = CombatTracker.TimeRange(fight!, Plugin.Now, selectedTarget);
+        var markers = FightTimeline.Markers(fight!, row.Actor.Id, selectedTarget, Plugin.Now, bins, selector);
         if (peak > 0)
         {
             float Y(double value) => plot.yMax - 3 - (float)((plot.height - 7) * value / peak);
@@ -480,8 +482,19 @@ internal sealed class MeterWindow
                 for (int i = 1; i < bins; i++)
                     PlotSegment(plot.x + 2 + (i - 1) * step, Y(values[i - 1]), plot.x + 2 + i * step, Y(values[i]));
             }
+        }
+        foreach (var marker in markers)
+        {
+            float x = plot.x + 2 + (float)((marker.Time - range.Start) / (range.End - range.Start) * (plot.width - 4));
+            Color color = marker.Kind == "boss" ? Gold : marker.Kind == "death" ? new Color32(225, 122, 122, 255) : Accent;
+            Box(new Rect(x, plot.y + 2, 1, plot.height - 4), new Color(color.r, color.g, color.b, .35f));
+            Box(new Rect(x - 3, plot.y + 2, 7, 5), color);
+        }
+        if (plugin.Interacting)
+        {
+            float Y(double value) => plot.yMax - 3 - (float)((plot.height - 7) * value / Math.Max(1, peak));
             var pointer = Pointer - rect.position;
-            if (plugin.Interacting && plot.Contains(pointer))
+            if (plot.Contains(pointer))
             {
                 int bucket = bins == 1 ? 0 : Math.Clamp((int)Math.Round((pointer.x - plot.x - 2) * (bins - 1) / (plot.width - 4)), 0, bins - 1);
                 float x = bins == 1 ? Mathf.Clamp(pointer.x, plot.x + 2, plot.x + plot.width - 2) : plot.x + 2 + bucket * (plot.width - 4) / (bins - 1);
@@ -489,16 +502,28 @@ internal sealed class MeterWindow
                 Box(new Rect(x, plot.y, 1, plot.height), new Color32(110, 213, 211, 105));
                 Box(new Rect(x - 3, y - 3, 7, 7), Accent);
                 double time = bins == 1 ? duration / 2 : duration * bucket / (bins - 1);
-                string label = $"{time:0.0}s  ·  {values[bucket]:0.0} DPS";
-                float labelX = Mathf.Clamp(x - 55, plot.x + 4, plot.x + plot.width - 114);
-                Box(new Rect(labelX, plot.y + 5, 110, 19), Background);
-                Text(new Rect(labelX + 5, plot.y + 5, 100, 19), label, 9, Ink, TextAnchor.MiddleCenter, true);
+                var marker = markers.OrderBy(m => Math.Abs(plot.x + 2 +
+                    (m.Time - range.Start) / (range.End - range.Start) * (plot.width - 4) - pointer.x)).FirstOrDefault();
+                bool overMarker = marker != null && Math.Abs(plot.x + 2 +
+                    (marker.Time - range.Start) / (range.End - range.Start) * (plot.width - 4) - pointer.x) <= 7;
+                string label = overMarker ? $"{marker!.Time - range.Start:0.0}s · {marker.Label}{(marker.Kind == "spike" ? $" · {marker.Value:N0} DPS" : "")}" :
+                    $"{time:0.0}s  ·  {values[bucket]:0.0} DPS";
+                float labelWidth = overMarker ? 205 : 110;
+                float labelX = Mathf.Clamp(x - labelWidth / 2, plot.x + 4, plot.x + plot.width - labelWidth - 4);
+                Box(new Rect(labelX, plot.y + 5, labelWidth, 19), Background);
+                Text(new Rect(labelX + 5, plot.y + 5, labelWidth - 10, 19), label, 9, Ink, TextAnchor.MiddleCenter, true);
             }
         }
         Text(new Rect(18, 302, 31, 18), peak.ToString("N0"), 9, Muted, TextAnchor.MiddleRight);
         Text(new Rect(18, 394, 31, 18), "0", 9, Muted, TextAnchor.MiddleRight);
         Text(new Rect(54, 411, 100, 18), "0.0s", 9, Muted);
         Text(new Rect(402, 411, 100, 18), duration.ToString("0.0") + "s", 9, Muted, TextAnchor.MiddleRight);
+        Box(new Rect(174, 425, 7, 7), new Color32(225, 122, 122, 255));
+        Text(new Rect(185, 421, 57, 15), "Death", 8, Muted);
+        Box(new Rect(250, 425, 7, 7), Gold);
+        Text(new Rect(261, 421, 63, 15), "Boss kill", 8, Muted);
+        Box(new Rect(337, 425, 7, 7), Accent);
+        Text(new Rect(348, 421, 57, 15), "Spike", 8, Muted);
     }
     private static void PlotSegment(float x1, float y1, float x2, float y2)
     {

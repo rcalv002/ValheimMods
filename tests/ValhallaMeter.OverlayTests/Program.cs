@@ -129,7 +129,42 @@ ConcurrentClick("Bear");Check(Has("Bear")&&Has("LIVE")&&Has("2 active · 0 saved
 File.WriteAllText(Path.Combine(root,"artifacts","concurrent-preview.svg"),GUI.Svg());
 ConcurrentClick("End fight");Check(concurrentPlugin.Tracker.Active.Count==1&&concurrentPlugin.Tracker.History.Count==1&&Has("HISTORY"),"Ending selected live fight affected another group");
 ConcurrentClick("Live");Check(Has("Boar")&&Has("LIVE"),"Live did not return to the remaining active encounter");
-System.Console.WriteLine("PASS Production overlay: concurrent encounters, source provenance, fight browser and 20-fight paging, Older/Newer/Live, target filters, DPS series, breakdowns, tabs, scaled hit targets, export and dragging");
+var markerPlugin=new Plugin();markerPlugin.Tracker.IdleSeconds=30;
+var markerBoss=new Actor{Id="entity:marker-boss",Name="The Elder"};
+void MarkerHit(string id,double time,double amount)=>markerPlugin.Tracker.Add(new CombatEvent{Id=id,Time=time,Amount=amount,Source=actor,Target=markerBoss,Weapon="Mace"});
+MarkerHit("marker:1",100.2,10);MarkerHit("marker:2",101.2,10);MarkerHit("marker:3",108.2,100);
+markerPlugin.Tracker.Add(new CombatEvent{Id="marker:death",Kind="death",Time=109,Target=actor});
+markerPlugin.Tracker.Add(new CombatEvent{Id="marker:death-other",Kind="death",Time=109.3,Target=new Actor{Id="player:2",Name="Bjorn",Player=true}});
+markerPlugin.Tracker.Add(new CombatEvent{Id="marker:boss",Kind="death",Time=110,Target=markerBoss,Boss=true});
+var markerWindow=new MeterWindow(markerPlugin);
+void MarkerDraw(){markerWindow.Refresh();GUI.Commands.Clear();markerWindow.Draw();}
+void MarkerClick(string label)
+{
+    var r=GUI.Commands.Single(c=>c.Text==label).Area;
+    ZInput.pointerPosition=new Vector3(r.x+r.width/2,Screen.height-r.y-r.height/2);
+    ZInput.Down=true;ZInput.Held=true;markerWindow.HandleInput();
+    ZInput.Down=false;ZInput.Held=false;ZInput.Up=true;markerWindow.HandleInput();ZInput.Up=false;MarkerDraw();
+}
+void MarkerHover(double fraction)
+{
+    var header=GUI.Commands.Single(c=>c.Text=="VALHALLA").Area;
+    float x=header.x-18+56+(float)(fraction*444),y=header.y-13+340;
+    ZInput.pointerPosition=new Vector3(x,Screen.height-y);MarkerDraw();
+}
+MarkerDraw();MarkerClick("Details");
+Check(Has("Death")&&Has("Boss kill")&&Has("Spike")&&
+    GUI.Commands.Any(c=>c.Text==null&&c.Area.height==5&&c.Color.Hex=="#E17A7A")&&
+    GUI.Commands.Any(c=>c.Text==null&&c.Area.height==5&&c.Color.Hex=="#D9B46C"),"Timeline marker legend or death/boss ticks missing");
+MarkerHover(.85);Check(GUI.Commands.Any(c=>c.Text!=null&&c.Text.Contains("Damage spike")),"Spike hover label missing");
+MarkerHover(.9);Check(GUI.Commands.Any(c=>c.Text!=null&&c.Text.Contains("Player death")),"Death hover label missing");
+MarkerHover(1);Check(GUI.Commands.Any(c=>c.Text!=null&&c.Text.Contains("Boss defeated")),"Boss hover label missing");
+File.WriteAllText(Path.Combine(root,"artifacts","timeline-preview.svg"),GUI.Svg());
+var playerNext=GUI.Commands.Single(c=>c.Text==">"&&c.Area.y>250&&c.Area.y<310).Area;
+ZInput.pointerPosition=new Vector3(playerNext.x+playerNext.width/2,Screen.height-playerNext.y-playerNext.height/2);
+ZInput.Down=true;ZInput.Held=true;markerWindow.HandleInput();
+ZInput.Down=false;ZInput.Held=false;ZInput.Up=true;markerWindow.HandleInput();ZInput.Up=false;MarkerDraw();
+MarkerHover(.93);Check(GUI.Commands.Any(c=>c.Text!=null&&c.Text.Contains("Player death · Bjorn")),"Death-only player's marker could not be inspected");
+System.Console.WriteLine("PASS Production overlay: timeline markers, concurrent encounters, source provenance, fight browser and 20-fight paging, Older/Newer/Live, target filters, DPS series, breakdowns, tabs, scaled hit targets, export and dragging");
 System.Console.WriteLine("Wrote artifacts/overlay-preview.svg (headless layout preview, not an in-game screenshot).");
 }
 catch(Exception ex)

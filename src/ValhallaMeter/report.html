@@ -7,7 +7,7 @@
 <header><div class="eyebrow">VALHALLA METER / COMBAT REPORT</div><h1 id="title"></h1><p id="subtitle"></p><p class="notice" id="coverage"></p></header>
 <div class="cards" id="cards"></div>
 <section><h2>Recorded damage sources</h2><table><thead><tr><th>Measurement</th><th>Player damage</th><th>Hits</th></tr></thead><tbody id="sources"></tbody></table><p class="muted">Relay transport is separate from damage measurement. These totals describe recorded hits; they cannot reveal damage missed when an owner does not run the mod.</p></section>
-<section id="chartsection"><div class="controls"><h2>Damage over time</h2><select id="chartPlayer" aria-label="Chart player"></select><select id="chartTarget" aria-label="Chart target"></select><select id="chartSeries" aria-label="Chart series"></select></div><div class="chart"><svg id="timeline" role="img" aria-label="Damage per second over the encounter" viewBox="0 0 1000 210"></svg><div class="tip" id="charttip"></div></div><p class="muted" id="chartnote"></p></section>
+<section id="chartsection"><div class="controls"><h2>Damage over time</h2><select id="chartPlayer" aria-label="Chart player"></select><select id="chartTarget" aria-label="Chart target"></select><select id="chartSeries" aria-label="Chart series"></select></div><div class="chart"><svg id="timeline" role="img" aria-label="Damage per second with death, boss kill, and spike markers" viewBox="0 0 1000 210"></svg><div class="tip" id="charttip"></div></div><p class="muted" id="chartnote"></p><p class="muted">Timeline markers: <span style="color:#e17a7a">■</span> player death · <span style="color:#d9b46c">■</span> boss kill · <span style="color:#7dd6dd">■</span> damage spike. Hover a marker for its time and details.</p></section>
 <section><h2>Group performance</h2><div class="tablewrap"><table><thead><tr><th>Player</th><th>DPS</th><th>Damage</th><th>Share</th><th>Taken</th><th>Healing received</th><th>Absorbed</th><th>Deaths</th></tr></thead><tbody id="players"></tbody></table></div></section>
 <section><div class="controls"><h2>Player details</h2><select id="player" aria-label="Player"></select></div><p id="resources"></p><div class="grid"><div><h2>Weapons and attacks</h2><table><tbody id="weapons"></tbody></table><h2 style="margin-top:22px">Hit results</h2><table><tbody id="results"></tbody></table></div><div><h2>Damage types</h2><table><tbody id="types"></tbody></table><h2 style="margin-top:22px">Status uptime</h2><table><tbody id="buffs"></tbody></table></div></div></section>
 <section><h2>Death and kill recaps</h2><div id="deaths"></div></section>
@@ -44,9 +44,41 @@ function updateSeries(){const previous=$('chartSeries').value,select=$('chartSer
 function seriesAmount(e){const selected=$('chartSeries').value;if(!selected)return e.Amount||0;if(selected.startsWith('w:'))return weapon(e)===selected.slice(2)?e.Amount||0:0;const type=selected.slice(2);return type==='Unresolved / fallback'?unresolved(e):(e.Types?.[type]||0);}
 function svg(tag,attrs={}){const n=document.createElementNS('http://www.w3.org/2000/svg',tag);for(const [k,v] of Object.entries(attrs))n.setAttribute(k,v);return n;}
 function drawChart(){const chart=$('timeline');chart.replaceChildren();const selected=scopedHits().map(e=>({e,amount:seriesAmount(e)})).filter(x=>x.amount>0),bins=Math.min(180,Math.max(1,Math.ceil(duration)));binSeconds=duration/bins;buckets=Array(bins).fill(0);for(const x of selected){const i=Math.max(0,Math.min(bins-1,Math.floor((x.e.Time-fight.Start)/duration*bins)));buckets[i]+=x.amount/binSeconds;}plotPeak=Math.max(1,...buckets);for(let i=0;i<5;i++)chart.append(svg('line',{x1:50,y1:20+i*37.5,x2:980,y2:20+i*37.5,stroke:'#334751','stroke-width':1}));const points=buckets.map((v,i)=>`${50+(i+.5)/bins*930},${170-v/plotPeak*150}`).join(' ');chart.append(svg('polyline',{points,fill:'none',stroke:'#7dd6dd','stroke-width':2}));chart.append(svg('text',{x:44,y:28,fill:'#adbec7','font-size':12,'text-anchor':'end'})).textContent=fmt(plotPeak,1);chart.append(svg('text',{x:44,y:174,fill:'#adbec7','font-size':12,'text-anchor':'end'})).textContent='0';chart.append(svg('text',{x:50,y:198,fill:'#adbec7','font-size':12})).textContent='0.0s';chart.append(svg('text',{x:980,y:198,fill:'#adbec7','font-size':12,'text-anchor':'end'})).textContent=fmt(duration,1)+'s';chart.append(svg('line',{id:'cursor',y1:20,y2:170,stroke:'#7dd6dd','stroke-width':1,visibility:'hidden'}),svg('circle',{id:'point',r:4,fill:'#7dd6dd',visibility:'hidden'}));const damage=selected.reduce((n,x)=>n+x.amount,0),hitsCount=new Set(selected.map(x=>x.e.Id)).size;$('chartnote').textContent=`${fmt(damage)} damage · ${hitsCount} hits · ${fmt(damage/duration,1)} average DPS · ${fmt(plotPeak,1)} peak · ${fmt(binSeconds,2)}s bins`;}
+let chartMarkers=[];
+const baseDrawChart=drawChart;
+drawChart=()=>{baseDrawChart();drawChartMarkers();};
+function drawChartMarkers(){
+  const chart=$('timeline'),player=$('chartPlayer').value,target=$('chartTarget').value;
+  chartMarkers=events.filter(e=>e.Kind==='death'&&e.Time>=fight.Start&&e.Time<=end&&
+    (e.Target.Player?(!player||e.Target.Id===player):(e.Boss&&(!target||e.Target.Id===target))))
+    .slice(0,24).map(e=>({time:e.Time,kind:e.Boss?'boss':'death',label:(e.Boss?'Boss defeated · ':'Player death · ')+e.Target.Name}));
+  const selected=scopedHits().reduce((n,e)=>n+seriesAmount(e),0),average=selected/duration;
+  if(average>0){
+    const spikes=buckets.map((value,i)=>({value,i})).filter(({value,i})=>value>=2*average&&
+      (i===0||value>=buckets[i-1])&&(i===buckets.length-1||value>=buckets[i+1]))
+      .sort((a,b)=>b.value-a.value).slice(0,3);
+    for(const {value,i} of spikes)chartMarkers.push({time:fight.Start+(i+.5)*binSeconds,kind:'spike',label:'Damage spike · '+fmt(value,1)+' DPS'});
+  }
+  for(const marker of chartMarkers){
+    marker.x=50+Math.max(0,Math.min(1,(marker.time-fight.Start)/duration))*930;
+    const color=marker.kind==='death'?'#e17a7a':marker.kind==='boss'?'#d9b46c':'#7dd6dd';
+    chart.append(svg('line',{x1:marker.x,x2:marker.x,y1:20,y2:170,stroke:color,'stroke-opacity':.5,'stroke-width':1}));
+    chart.append(svg('rect',{x:marker.x-4,y:20,width:8,height:7,fill:color}));
+  }
+}
 function refreshChart(){updateSeries();drawChart();}$('chartPlayer').onchange=refreshChart;$('chartTarget').onchange=refreshChart;$('chartSeries').onchange=drawChart;refreshChart();
 $('timeline').onpointermove=e=>{if(!buckets.length)return;const rect=e.currentTarget.getBoundingClientRect(),vx=(e.clientX-rect.left)/rect.width*1000,index=Math.max(0,Math.min(buckets.length-1,Math.floor((vx-50)/930*buckets.length))),x=50+(index+.5)/buckets.length*930,y=170-buckets[index]/plotPeak*150,cursor=$('cursor'),point=$('point');cursor.setAttribute('x1',x);cursor.setAttribute('x2',x);cursor.setAttribute('visibility','visible');point.setAttribute('cx',x);point.setAttribute('cy',y);point.setAttribute('visibility','visible');const tip=$('charttip');tip.textContent=`${fmt((index+.5)*binSeconds,2)}s · ${fmt(buckets[index],1)} DPS`;tip.style.display='block';tip.style.left=Math.min(rect.width-130,Math.max(0,e.clientX-rect.left+10))+'px';tip.style.top=Math.max(0,e.clientY-rect.top-34)+'px';};
 $('timeline').onpointerleave=()=>{$('cursor').setAttribute('visibility','hidden');$('point').setAttribute('visibility','hidden');$('charttip').style.display='none';};
+const basePointerMove=$('timeline').onpointermove;
+$('timeline').onpointermove=e=>{
+  basePointerMove(e);
+  const rect=e.currentTarget.getBoundingClientRect(),x=(e.clientX-rect.left)/rect.width*1000;
+  const marker=chartMarkers.reduce((best,m)=>!best||Math.abs(m.x-x)<Math.abs(best.x-x)?m:best,null);
+  if(marker&&Math.abs(marker.x-x)<=8){
+    const tip=$('charttip');tip.textContent=`${fmt(marker.time-fight.Start,1)}s · ${marker.label}`;
+    tip.style.left=Math.max(0,Math.min(rect.width-260,Math.max(0,e.clientX-rect.left+10)))+'px';
+  }
+};
 function chooseSeries(value){$('chartPlayer').value=$('player').value;$('chartTarget').value='';updateSeries();if([...$('chartSeries').options].some(o=>o.value===value))$('chartSeries').value=value;drawChart();$('chartsection').scrollIntoView({behavior:'smooth',block:'start'});}
 function detailRow(parent,label,value,series){const tr=node('tr'),a=node('td'),button=node('button',label);button.className='series';button.onclick=()=>chooseSeries(series);a.append(button);tr.append(a,node('td',fmt(value)));parent.append(tr);}
 function details(){const id=$('player').value;for(const name of ['weapons','types','results','buffs'])$(name).replaceChildren();const mine=playerHits.filter(e=>e.Source.Id===id),stamina=sum(events.filter(e=>e.Kind==='stamina'&&e.Source.Id===id)),eitr=sum(events.filter(e=>e.Kind==='eitr'&&e.Source.Id===id));$('resources').textContent=`${fmt(mine.length)} hits · ${fmt(stamina,1)} stamina · ${fmt(eitr,1)} eitr · ${stamina?fmt(sum(mine)/stamina,2):'—'} damage per stamina`;for(const [key,value] of group(mine,weapon))detailRow($('weapons'),key,value,'w:'+key);for(const [key,value] of group(mine.flatMap(e=>Object.entries(e.Types||{}).map(([k,v])=>({k,v}))),e=>e.k,e=>e.v))detailRow($('types'),key,value,'t:'+key);const unresolvedTotal=mine.reduce((n,e)=>n+unresolved(e),0);if(unresolvedTotal>.05)detailRow($('types'),'Unresolved / fallback',unresolvedTotal,'t:Unresolved / fallback');const results=new Map;for(const e of mine){const key=e.Result||'Unresolved',value=results.get(key)||{hits:0,damage:0};value.hits++;value.damage+=e.Amount||0;results.set(key,value);}for(const [key,value] of [...results].sort((a,b)=>b[1].damage-a[1].damage))row($('results'),[key,`${value.hits} hits · ${fmt(value.damage)} damage`]);const samples=events.filter(e=>e.Kind==='status'&&e.Source.Id===id).sort((a,b)=>a.Time-b.Time),buffs=new Map;samples.forEach((e,i)=>{const seconds=Math.max(0,Math.min(end,e.Time+1.5,samples[i+1]?.Time??end)-Math.max(fight.Start,e.Time));for(const b of new Set(e.Statuses))buffs.set(b,(buffs.get(b)||0)+seconds);});for(const [key,value] of [...buffs].sort((a,b)=>b[1]-a[1]))row($('buffs'),[key,fmt(value/duration*100,1)+'%',fmt(value,1)+'s']);}

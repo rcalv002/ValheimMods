@@ -1,3 +1,10 @@
+# 0.2.10 — fight timeline markers
+
+- Mark recorded player deaths, boss kills, and major damage spikes on the in-game DPS plot and offline report chart.
+- Show marker time and details on hover, with a compact color legend.
+- Recalculate spike markers for the selected player, target, and damage series; the spike rule is a local peak at least twice that series' average DPS.
+- Include a selected target's death when calculating its engagement duration so a boss-kill marker remains on the timeline.
+
 # 0.2.9 — concurrent encounters
 
 - Keep up to eight spatially separate fights active at once, routing interleaved damage and positioned resource/status samples to the matching fight.
