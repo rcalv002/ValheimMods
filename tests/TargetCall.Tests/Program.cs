@@ -21,6 +21,12 @@ Check(state.Apply(13, 35, 8, 2, 30, 119) && !state.Focused, "New call resets loc
 Check(state.Apply(0, 0, 0, 3, 0, 120) && !state.Active(120), "Host clear removes call");
 Check(state.Apply(0, 44, 7, 4, 30, 121) && state.Active(121), "ZDO with zero user ID is still a target");
 Check(state.Apply(55, 0, 7, 5, 30, 122) && state.Active(122), "ZDO with zero object ID is still a target");
+var personal = new PersonalMarker();
+Check(personal.Toggle(42, 9) && personal.Matches(42, 9), "Personal marker sets locally");
+Check(!personal.Toggle(42, 9) && !personal.Active, "Repeating a personal mark clears it");
+personal.Toggle(42, 10);
+personal.Clear();
+Check(!personal.Active, "Personal marker clears on session change");
 
 UnityEngine.Time.realtimeSinceStartupAsDouble = 200;
 ZNet.LocalUid = 10;
@@ -82,3 +88,20 @@ client.Update();
 Check(!client.Connected && !client.State.Active(233) &&
       clientRpc.Calls.Last().Name == "TargetCall_Hello_v1" && clientRpc.Calls.Last().Recipient == 11,
     "Host change resets call without registering RPCs twice");
+
+UnityEngine.Time.realtimeSinceStartupAsDouble = 300;
+ZNet.LocalUid = 10;
+ZNet.instance = new ZNet { Server = true, Peers = { new ZNetPeer { m_uid = 20 } } };
+var dualRpc = ZRoutedRpc.instance = new ZRoutedRpc();
+var attack = new TargetSync();
+var leader = new TargetSync("TargetCall_Leader");
+attack.Update();
+leader.Update();
+dualRpc.DeliverHello(20, "TargetCall_Leader");
+Check(dualRpc.Calls.Last().Name == "TargetCall_Leader_State_v1", "Leader channel handshakes independently");
+Check(attack.Call(111, 1) && leader.Call(222, 2), "Attack and leader markers can coexist");
+Check(attack.State.ObjectId == 1 && leader.State.ObjectId == 2, "Shared marker identities remain separate");
+dualRpc.DeliverRequest(20, 333, 3, "TargetCall_Leader");
+Check(leader.State.ObjectId == 3 && attack.State.ObjectId == 1, "Replacing leader leaves attack call intact");
+dualRpc.DeliverDead(20, 333, 3, leader.State.Revision, "TargetCall_Leader");
+Check(!leader.State.Active(300) && attack.State.Active(300), "Leader death clears only leader marker");

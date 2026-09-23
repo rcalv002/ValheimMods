@@ -4,14 +4,14 @@ using System.Linq;
 
 namespace TargetCall;
 
-// The server orders one shared call. The target's ZDO identity, not its current
-// owner or position, lets each client follow the same moving target.
+// Each instance orders one shared marker. Separate RPC names let attack/assist
+// and commander markers coexist without changing the original call protocol.
 internal sealed class TargetSync
 {
-    private const string HelloRpc = "TargetCall_Hello_v1";
-    private const string RequestRpc = "TargetCall_Request_v1";
-    private const string StateRpc = "TargetCall_State_v1";
-    private const string DeadRpc = "TargetCall_Dead_v1";
+    private readonly string helloRpc;
+    private readonly string requestRpc;
+    private readonly string stateRpc;
+    private readonly string deadRpc;
     private const float Lifetime = 30f;
     private readonly Dictionary<long, double> lastRequest = new Dictionary<long, double>();
     private ZRoutedRpc? rpc;
@@ -28,7 +28,13 @@ internal sealed class TargetSync
     private static long HostId => ZNet.instance?.GetServerPeer()?.m_uid ?? 0;
     public bool Connected => IsHost || (connected && Clock - lastState < 25);
 
-    public TargetSync() { }
+    public TargetSync(string channel = "TargetCall")
+    {
+        helloRpc = channel + "_Hello_v1";
+        requestRpc = channel + "_Request_v1";
+        stateRpc = channel + "_State_v1";
+        deadRpc = channel + "_Dead_v1";
+    }
 
     public void Update()
     {
@@ -39,12 +45,12 @@ internal sealed class TargetSync
             rpc = ZRoutedRpc.instance;
             if (rpc != null)
             {
-                rpc.Register<int>(HelloRpc, (sender, version) => Plugin.Guard(() => Hello(sender, version)));
-                rpc.Register<long, uint>(RequestRpc, (sender, user, id) => Plugin.Guard(() => Request(sender, user, id)));
-                rpc.Register<long, uint, long, int, float>(StateRpc,
+                rpc.Register<int>(helloRpc, (sender, version) => Plugin.Guard(() => Hello(sender, version)));
+                rpc.Register<long, uint>(requestRpc, (sender, user, id) => Plugin.Guard(() => Request(sender, user, id)));
+                rpc.Register<long, uint, long, int, float>(stateRpc,
                     (sender, user, id, caller, sequence, remaining) =>
                         Plugin.Guard(() => ReceiveState(sender, user, id, caller, sequence, remaining)));
-                rpc.Register<long, uint, int>(DeadRpc,
+                rpc.Register<long, uint, int>(deadRpc,
                     (sender, user, id, sequence) => Plugin.Guard(() => Dead(sender, user, id, sequence)));
             }
         }
@@ -76,7 +82,7 @@ internal sealed class TargetSync
             if (hostId != 0 && Clock >= nextHello)
             {
                 nextHello = Clock + (Connected ? 10 : 3);
-                rpc.InvokeRoutedRPC(hostId, HelloRpc, 1);
+                rpc.InvokeRoutedRPC(hostId, helloRpc, 1);
             }
         }
     }
@@ -85,7 +91,7 @@ internal sealed class TargetSync
     {
         if (rpc == null || !ZNet.instance || !Connected) return false;
         if (IsHost) Request(ZNet.GetUID(), user, id);
-        else rpc.InvokeRoutedRPC(hostId, RequestRpc, user, id);
+        else rpc.InvokeRoutedRPC(hostId, requestRpc, user, id);
         return true;
     }
 
@@ -94,7 +100,7 @@ internal sealed class TargetSync
         if (rpc == null || !State.Active(Clock) || !Connected || Clock < nextDeadReport) return;
         nextDeadReport = Clock + 2;
         if (IsHost) Dead(ZNet.GetUID(), State.UserId, State.ObjectId, State.Revision);
-        else rpc.InvokeRoutedRPC(hostId, DeadRpc, State.UserId, State.ObjectId, State.Revision);
+        else rpc.InvokeRoutedRPC(hostId, deadRpc, State.UserId, State.ObjectId, State.Revision);
     }
 
     private void Hello(long sender, int version)
@@ -137,7 +143,7 @@ internal sealed class TargetSync
     private void SendState(long recipient)
     {
         float remaining = State.Active(Clock) ? (float)Math.Max(0, State.ExpiresAt - Clock) : 0;
-        rpc!.InvokeRoutedRPC(recipient, StateRpc, State.Active(Clock) ? State.UserId : 0,
+        rpc!.InvokeRoutedRPC(recipient, stateRpc, State.Active(Clock) ? State.UserId : 0,
             State.Active(Clock) ? State.ObjectId : 0u, State.Active(Clock) ? State.Caller : 0,
             revision, remaining);
     }

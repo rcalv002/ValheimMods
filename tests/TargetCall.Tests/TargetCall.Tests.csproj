@@ -2,6 +2,7 @@
   <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework></PropertyGroup>
   <ItemGroup>
     <Compile Include="..\..\src\TargetCall\CallState.cs" Link="CallState.cs" />
+    <Compile Include="..\..\src\TargetCall\PersonalMarker.cs" Link="PersonalMarker.cs" />
     <Compile Include="..\..\src\TargetCall\TargetSync.cs" Link="TargetSync.cs" />
   </ItemGroup>
 </Project>

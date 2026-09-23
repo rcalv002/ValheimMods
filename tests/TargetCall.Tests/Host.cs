@@ -31,13 +31,14 @@ public sealed class ZRoutedRpc
     public void Register<T, U, V>(string name, Action<long, T, U, V> handler) => handlers.Add(name, handler);
     public void Register<T, U, V, B, K>(string name, Action<long, T, U, V, B, K> handler) => handlers.Add(name, handler);
     public void InvokeRoutedRPC(long recipient, string name, params object[] args) => Calls.Add((recipient, name, args));
-    public void DeliverHello(long sender) => ((Action<long, int>)handlers["TargetCall_Hello_v1"])(sender, 1);
-    public void DeliverRequest(long sender, long user, uint id) =>
-        ((Action<long, long, uint>)handlers["TargetCall_Request_v1"])(sender, user, id);
-    public void DeliverDead(long sender, long user, uint id, int revision) =>
-        ((Action<long, long, uint, int>)handlers["TargetCall_Dead_v1"])(sender, user, id, revision);
-    public void DeliverState(long sender, long user, uint id, long caller, int revision, float remaining) =>
-        ((Action<long, long, uint, long, int, float>)handlers["TargetCall_State_v1"])(sender, user, id, caller, revision, remaining);
+    public void DeliverHello(long sender, string channel = "TargetCall") =>
+        ((Action<long, int>)handlers[channel + "_Hello_v1"])(sender, 1);
+    public void DeliverRequest(long sender, long user, uint id, string channel = "TargetCall") =>
+        ((Action<long, long, uint>)handlers[channel + "_Request_v1"])(sender, user, id);
+    public void DeliverDead(long sender, long user, uint id, int revision, string channel = "TargetCall") =>
+        ((Action<long, long, uint, int>)handlers[channel + "_Dead_v1"])(sender, user, id, revision);
+    public void DeliverState(long sender, long user, uint id, long caller, int revision, float remaining, string channel = "TargetCall") =>
+        ((Action<long, long, uint, long, int, float>)handlers[channel + "_State_v1"])(sender, user, id, caller, revision, remaining);
 }
 
 namespace TargetCall
