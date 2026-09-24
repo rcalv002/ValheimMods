@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace TargetCall;
 
-[BepInPlugin("local.targetcall", "Target Call", "0.2.1")]
+[BepInPlugin("local.targetcall", "Target Call", "0.2.2")]
 public sealed class Plugin : BaseUnityPlugin
 {
     private static Plugin? instance;
@@ -53,7 +53,7 @@ public sealed class Plugin : BaseUnityPlugin
             new ConfigDescription("Maximum distance for the on-screen target marker.", new AcceptableValueRange<float>(15f, 150f)));
         sync = new TargetSync();
         leaderSync = new TargetSync("TargetCall_Leader");
-        Logger.LogInfo("Target Call 0.2.1 loaded. C attacks; Shift+C assists; Alt+C marks privately; Ctrl+C designates a commander; Z takes the shared target.");
+        Logger.LogInfo("Target Call 0.2.2 loaded. C attacks; Shift+C assists; Alt+C marks privately; Ctrl+C designates a commander; Z takes the shared target.");
     }
 
     private void Update()
@@ -324,9 +324,10 @@ public sealed class Plugin : BaseUnityPlugin
     private void EnsureStyle()
     {
         if (attackIcon == null) attackIcon = CreateIcon((x, y) => SwordPixel(x, y, false) || SwordPixel(x, y, true));
-        if (defendIcon == null) defendIcon = CreateIcon((x, y) => ShieldPixel(x, -y));
-        if (personalIcon == null) personalIcon = CreateIcon(ArrowPixel);
-        if (leaderIcon == null) leaderIcon = CreateIcon(CrownPixel);
+        // The assist shield points up; the personal arrow points down; the crown's band stays below its tips.
+        if (defendIcon == null) defendIcon = CreateIcon(ShieldPixel);
+        if (personalIcon == null) personalIcon = CreateIcon((x, y) => ArrowPixel(x, -y));
+        if (leaderIcon == null) leaderIcon = CreateIcon((x, y) => CrownPixel(x, -y));
     }
 
     private static Texture2D CreateIcon(Func<float, float, bool> ink)

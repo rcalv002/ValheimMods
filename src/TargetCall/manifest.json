@@ -1,6 +1,6 @@
 {
   "name": "TargetCall",
-  "version_number": "0.2.1",
+  "version_number": "0.2.2",
   "website_url": "",
   "description": "Shared attack, assist, and commander markers plus a private personal marker for Valheim.",
   "dependencies": ["denikson-BepInExPack_Valheim-5.4.2350"]
