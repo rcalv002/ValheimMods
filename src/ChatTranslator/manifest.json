@@ -1,7 +1,7 @@
 {
   "name": "ChatTranslator",
-  "version_number": "0.1.0",
+  "version_number": "0.1.1",
   "website_url": "",
-  "description": "Translate incoming Valheim player chat to English locally with OpenRouter Jev and GPT-6 Luna.",
+  "description": "Translate incoming Valheim player chat to a chosen language locally with OpenRouter Jev and GPT-6 Luna.",
   "dependencies": ["denikson-BepInExPack_Valheim-5.4.2350"]
 }

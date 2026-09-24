@@ -25,14 +25,27 @@ Check(ChatLine.WithTranslation("system line", "hello") == null,
 
 using var handler = new FakeHandler();
 using var client = new OpenRouterClient(new HttpClient(handler));
-string? english = await client.TranslateIfNeededAsync("Hello!", "test-key", default);
+string? english = await client.TranslateIfNeededAsync("Hello!", "test-key", "English", default);
 Check(english == null && handler.Decisions == 1 && handler.Translations == 0,
     "English takes only the Jev decision path");
-string? portuguese = await client.TranslateIfNeededAsync("Olá, tudo bem?", "test-key", default);
+string? portuguese = await client.TranslateIfNeededAsync("Olá, tudo bem?", "test-key", "English", default);
 Check(portuguese == "Hello, how are you?" && handler.Decisions == 2 && handler.Translations == 1,
     "Portuguese takes Jev then Luna and returns English");
 Check(handler.Authenticated && handler.ClassificationPromptValid && handler.TranslationPromptValid,
     "Requests use the expected API shapes and bearer authentication");
+string? alreadyPortuguese = await client.TranslateIfNeededAsync("Olá, tudo bem?", "test-key", "Portuguese", default);
+string? intoPortuguese = await client.TranslateIfNeededAsync("Hello!", "test-key", "Portuguese", default);
+Check(alreadyPortuguese == null && intoPortuguese == "Olá!",
+    "Configurable target language changes both classification and translation");
+using var lowHandler = new FakeHandler { ForcedProbability = 0.79 };
+using var lowClient = new OpenRouterClient(new HttpClient(lowHandler));
+using var highHandler = new FakeHandler { ForcedProbability = 0.81 };
+using var highClient = new OpenRouterClient(new HttpClient(highHandler));
+Check(await lowClient.TranslateIfNeededAsync("Olá, tudo bem?", "test-key", "English", default) != null &&
+    lowHandler.Translations == 1 &&
+    await highClient.TranslateIfNeededAsync("Olá, tudo bem?", "test-key", "English", default) == null &&
+    highHandler.Translations == 0,
+    "A Jev probability below 0.8 translates; 0.8 or higher stays unchanged");
 
 sealed class FakeHandler : HttpMessageHandler
 {
@@ -41,6 +54,7 @@ sealed class FakeHandler : HttpMessageHandler
     internal bool Authenticated = true;
     internal bool ClassificationPromptValid = true;
     internal bool TranslationPromptValid = true;
+    internal double? ForcedProbability;
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,
         CancellationToken cancellationToken)
@@ -51,18 +65,32 @@ sealed class FakeHandler : HttpMessageHandler
         if (request.RequestUri!.AbsolutePath == "/api/alpha/decisions")
         {
             Decisions++;
+            string instructions = (string?)body["questions"]?["language"]?["instructions"] ?? "";
             ClassificationPromptValid &= (string?)body["model"] == "typesafe/jev-1.13" &&
-                (string?)body["questions"]?["language"]?["type"] == "choice" &&
-                body["questions"]?["language"]?["criteria"]?["english"] != null &&
-                body["questions"]?["language"]?["criteria"]?["other"] != null;
-            string choice = (string?)body["state"] == "Hello!" ? "english" : "other";
-            return Reply("{\"answers\":{\"language\":{\"type\":\"choice\",\"choice\":\"" + choice + "\"}}}");
+                (string?)body["questions"]?["language"]?["type"] == "noul" &&
+                body["questions"]?["language"]?["criteria"]?["true"] != null &&
+                body["questions"]?["language"]?["criteria"]?["false"] != null;
+            bool portugueseTarget = instructions.Contains("Portuguese");
+            bool portugueseText = (string?)body["state"] == "Olá, tudo bem?";
+            double probability = ForcedProbability ?? (portugueseTarget == portugueseText ? 0.99 : 0.01);
+            return Reply("{\"answers\":{\"language\":{\"type\":\"noul\",\"noul\":" +
+                probability.ToString(System.Globalization.CultureInfo.InvariantCulture) + "}}}");
         }
         Translations++;
+        string prompt = (string?)body["messages"]?[0]?["content"] ?? "";
+        string message = (string?)body["messages"]?[1]?["content"] ?? "";
         TranslationPromptValid &= request.RequestUri.AbsolutePath == "/api/v1/chat/completions" &&
             (string?)body["model"] == "openai/gpt-6-luna" &&
-            (string?)body["messages"]?[1]?["content"] == "Olá, tudo bem?";
-        return Reply("{\"choices\":[{\"message\":{\"content\":\"Hello, how are you?\"}}]}");
+            ((message == "Olá, tudo bem?" && prompt.Contains("English")) ||
+             (message == "Hello!" && prompt.Contains("Portuguese")));
+        string output = message == "Hello!" ? "Olá!" : "Hello, how are you?";
+        return Reply(new JObject
+        {
+            ["choices"] = new JArray(new JObject
+            {
+                ["message"] = new JObject { ["content"] = output }
+            })
+        }.ToString(Newtonsoft.Json.Formatting.None));
     }
 
     private static HttpResponseMessage Reply(string json) => new HttpResponseMessage(HttpStatusCode.OK)

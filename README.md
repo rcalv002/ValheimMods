@@ -3,7 +3,7 @@
 An experimental Valheim combat meter inspired by arcdps. This is an independent C# mod; it does not load, modify, or redistribute arcdps. Version 0.2.14 is built against the locally installed Steam build 25390630 and BepInExPack Valheim 5.4.2350.
 
 This repository also contains [Target Call](src/TargetCall/README.md), a separate plugin for shared moving-creature markers. It installs alongside the meter and does not change its combat recording.
-It also contains [Chat Translator](src/ChatTranslator/README.md), an optional client-side plugin that translates incoming player chat to English through OpenRouter.
+It also contains [Chat Translator](src/ChatTranslator/README.md), an optional client-side plugin that translates incoming player chat to a configured language through OpenRouter.
 
 ## What is implemented
 

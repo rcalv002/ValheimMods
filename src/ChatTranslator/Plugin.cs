@@ -12,7 +12,7 @@ using UnityEngine;
 
 namespace ChatTranslator;
 
-[BepInPlugin("local.chattranslator", "Chat Translator", "0.1.0")]
+[BepInPlugin("local.chattranslator", "Chat Translator", "0.1.1")]
 public sealed class Plugin : BaseUnityPlugin
 {
     private static readonly FieldInfo BufferField = AccessTools.Field(typeof(Terminal), "m_chatBuffer");
@@ -22,6 +22,7 @@ public sealed class Plugin : BaseUnityPlugin
     private readonly SemaphoreSlim workers = new SemaphoreSlim(2);
     private readonly CancellationTokenSource stopping = new CancellationTokenSource();
     private ConfigEntry<string> apiKey = null!;
+    private ConfigEntry<string> targetLanguage = null!;
     private OpenRouterClient client = null!;
     private Harmony? harmony;
     private int pending;
@@ -40,6 +41,8 @@ public sealed class Plugin : BaseUnityPlugin
         instance = this;
         apiKey = Config.Bind("OpenRouter", "ApiKey", "",
             "OpenRouter API key for private, local chat translation. OPENROUTER_API_KEY takes precedence when set. Do not share this config file.");
+        targetLanguage = Config.Bind("Translation", "TargetLanguage", "English",
+            "Language to show incoming player chat in, such as English, Portuguese, Spanish, or pt-BR.");
         client = new OpenRouterClient();
         harmony = new Harmony("local.chattranslator");
         MethodInfo addChatLine = AccessTools.Method(typeof(Terminal), nameof(Terminal.AddString),
@@ -50,14 +53,24 @@ public sealed class Plugin : BaseUnityPlugin
             prefix: new HarmonyMethod(typeof(Plugin), nameof(BeforeChatLine)),
             postfix: new HarmonyMethod(typeof(Plugin), nameof(AfterChatLine)));
         Logger.LogInfo(string.IsNullOrWhiteSpace(Key())
-            ? "Chat Translator 0.1.0 loaded; set OpenRouter ApiKey to enable translation."
-            : "Chat Translator 0.1.0 loaded; incoming player chat translation enabled.");
+            ? "Chat Translator 0.1.1 loaded; set OpenRouter ApiKey to enable translation."
+            : "Chat Translator 0.1.1 loaded; incoming player chat translation enabled; target language: " + Language() + ".");
     }
 
     private string Key()
     {
         string environment = Environment.GetEnvironmentVariable("OPENROUTER_API_KEY") ?? "";
         return string.IsNullOrWhiteSpace(environment) ? apiKey.Value.Trim() : environment.Trim();
+    }
+
+    private string Language()
+    {
+        string value = targetLanguage.Value.Trim();
+        if (value.Length < 2 || value.Length > 48) return "English";
+        foreach (char character in value)
+            if (!char.IsLetter(character) && character != ' ' && character != '-' &&
+                character != '(' && character != ')') return "English";
+        return value;
     }
 
     private static List<string>? Buffer(Terminal terminal) => BufferField.GetValue(terminal) as List<string>;
@@ -80,6 +93,7 @@ public sealed class Plugin : BaseUnityPlugin
                 string.IsNullOrWhiteSpace(text) || text.Length > 1000) return;
             string key = plugin.Key();
             if (key.Length == 0) return;
+            string language = plugin.Language();
             List<string>? lines = Buffer(chat);
             if (lines == null || lines.Count == 0) return;
             string line = lines[lines.Count - 1];
@@ -89,7 +103,7 @@ public sealed class Plugin : BaseUnityPlugin
                 Interlocked.Decrement(ref plugin.pending);
                 return;
             }
-            _ = Task.Run(() => plugin.ProcessAsync(chat, line, text, key));
+            _ = Task.Run(() => plugin.ProcessAsync(chat, line, text, key, language));
         }
         catch (Exception ex)
         {
@@ -97,7 +111,7 @@ public sealed class Plugin : BaseUnityPlugin
         }
     }
 
-    private async Task ProcessAsync(Chat chat, string line, string text, string key)
+    private async Task ProcessAsync(Chat chat, string line, string text, string key, string language)
     {
         bool acquired = false;
         var result = new Completed { Chat = chat, OriginalLine = line };
@@ -105,7 +119,7 @@ public sealed class Plugin : BaseUnityPlugin
         {
             await workers.WaitAsync(stopping.Token).ConfigureAwait(false);
             acquired = true;
-            result.Translation = await client.TranslateIfNeededAsync(text, key, stopping.Token).ConfigureAwait(false);
+            result.Translation = await client.TranslateIfNeededAsync(text, key, language, stopping.Token).ConfigureAwait(false);
             if (result.Translation != null) completed.Enqueue(result);
         }
         catch (OperationCanceledException)
