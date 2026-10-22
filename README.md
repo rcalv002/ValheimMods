@@ -27,6 +27,8 @@ It also contains [Chat Translator](src/ChatTranslator/README.md), an optional cl
 
 ## Install
 
+See [the deployment guide](DEPLOYMENT.md) for client setup and the [Docker server deployment script](scripts/deploy-server.sh), which installs server plugins into both persistent and active BepInEx paths.
+
 The release ZIP contains only this mod and its core library. It contains no Valheim game libraries, arcdps DLL, or loader binaries. It is a manual-install archive, not a published Thunderstore package.
 
 1. Install [BepInExPack for Valheim](https://thunderstore.io/c/valheim/p/denikson/BepInExPack_Valheim/).

@@ -72,6 +72,8 @@ For Chat Translator, edit `local.chattranslator.cfg`:
 ~~~
 [OpenRouter]
 ApiKey = YOUR_OPENROUTER_KEY
+
+[Translation]
 TargetLanguage = English
 Enabled = true
 ~~~
@@ -95,7 +97,35 @@ This image uses two relevant BepInEx trees:
 /dockerdata/valheim/data/bepinex/BepInEx # active runtime loaded by the server
 ~~~
 
-The plugin must be present in the active runtime tree. Keeping a matching copy in the persistent `config` tree prevents it from being lost when the container is recreated.
+The plugin must be present in the active runtime tree. Keep a matching copy in the persistent `config` tree as well, and verify the active copy after container recreation or a BepInEx update.
+
+### Automated deployment
+
+Use the tracked [scripts/deploy-server.sh](scripts/deploy-server.sh) instead of the older version-specific script under ignored `artifacts/`. It installs Valhalla Meter and Target Call into both trees, including when the active plugin directories or DLLs are missing. Chat Translator remains client-only.
+
+First enable BepInEx and start the server once so that `data/bepinex/BepInEx/core/BepInEx.dll` exists. Copy the script to the server and stage these three DLLs together in a separate directory, such as `/dockerdata/valheim/staged-plugins`:
+
+~~~text
+ValhallaMeter.dll        # from the Valhalla Meter release
+ValhallaMeter.Core.dll   # from the same Valhalla Meter release
+TargetCall.dll          # from the Target Call release
+~~~
+
+The source directory contains the DLLs directly, without their release folder structure. Run on the Ubuntu server using Bash and the stack's Docker Compose permissions:
+
+~~~bash
+bash /dockerdata/valheim/deploy-server.sh \
+  /dockerdata/valheim/staged-plugins \
+  /dockerdata/valheim
+~~~
+
+The second argument is optional and defaults to `/dockerdata/valheim`. The script checks prerequisites and all input DLLs before stopping the service. It snapshots source DLLs and previous destination files in a unique `config/bepinex/deploy-backup-*` directory, stops the server, creates missing plugin directories, installs all three DLLs into both trees, and compares SHA-256 hashes with the staged source snapshots before and immediately after requesting startup. It does not change `.env` or require an empty server password.
+
+On installation, restart, or hash-verification failure, it stops the service before restoring changed DLLs. Files absent before deployment are removed during rollback, and the service is started again only if it was running before deployment. The backup directory is retained, including `targets.txt` and `existed.txt` describing the original destinations. If the service cannot be stopped during rollback, it reports that manual recovery is needed and leaves the backup intact.
+
+Docker startup is asynchronous: a successful script run confirms matching files and a successful Compose startup request. Use the log check in step 4 below to confirm both plugins actually loaded. If an image update later replaces its runtime tree, rerun the deployment script.
+
+The following steps also document the equivalent manual installation.
 
 ### 1. Check the server prerequisites
 
