@@ -6,8 +6,8 @@ using UnityEngine;
 
 namespace TargetCall;
 
-[BepInPlugin("local.targetcall", "Target Call", "0.2.2")]
-public sealed class Plugin : BaseUnityPlugin
+[BepInPlugin("local.targetcall", "Target Call", "0.2.3")]
+public sealed partial class Plugin : BaseUnityPlugin
 {
     private static Plugin? instance;
     private ConfigEntry<KeyboardShortcut> callKey = null!;
@@ -53,7 +53,7 @@ public sealed class Plugin : BaseUnityPlugin
             new ConfigDescription("Maximum distance for the on-screen target marker.", new AcceptableValueRange<float>(15f, 150f)));
         sync = new TargetSync();
         leaderSync = new TargetSync("TargetCall_Leader");
-        Logger.LogInfo("Target Call 0.2.2 loaded. C attacks; Shift+C assists; Alt+C marks privately; Ctrl+C designates a commander; Z takes the shared target.");
+        Logger.LogInfo("Target Call 0.2.3 loaded. C attacks; Shift+C assists; Alt+C marks privately; Ctrl+C designates a commander; Z takes the shared target.");
     }
 
     private void Update()

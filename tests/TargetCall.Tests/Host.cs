@@ -9,6 +9,15 @@ namespace UnityEngine
 public sealed class ZNetPeer { public long m_uid; }
 public sealed class ZNet
 {
+    public struct PlayerInfo
+    {
+        public string m_name;
+        public ZDOID m_characterID;
+        public UnityEngine.Vector3 m_position;
+        public bool m_publicPosition;
+    }
+    public readonly List<PlayerInfo> PublicPlayers = new();
+    public void GetOtherPublicPlayers(List<PlayerInfo> players) => players.AddRange(PublicPlayers.FindAll(p => p.m_publicPosition));
     public static ZNet instance = null!;
     public static long LocalUid;
     public bool Server;
@@ -43,7 +52,7 @@ public sealed class ZRoutedRpc
 
 namespace TargetCall
 {
-    internal sealed class Plugin
+    public sealed partial class Plugin
     {
         public static void Guard(Action action) => action();
     }

@@ -30,7 +30,7 @@ $staged = $target + '.update-' + [guid]::NewGuid().ToString('N')
 try {
     Copy-Item -LiteralPath $source -Destination $staged
     if ((Get-FileHash -LiteralPath $staged -Algorithm SHA256).Hash -ne $expectedHash) { throw 'Staged hash mismatch.' }
-    if (Test-Path -LiteralPath $target) { [System.IO.File]::Replace($staged, $target, $null) }
+    if (Test-Path -LiteralPath $target) { [System.IO.File]::Replace($staged, $target, ($backup + '.replaced')) }
     else { Move-Item -LiteralPath $staged -Destination $target }
     if ((Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash -ne $expectedHash) { throw 'Installed hash mismatch.' }
 } finally {

@@ -3,5 +3,7 @@
   <ItemGroup>
     <Compile Include="..\..\src\HeadingCompass\Heading.cs" Link="Heading.cs" />
     <Compile Include="..\..\src\HeadingCompass\CompassOverlay.cs" Link="CompassOverlay.cs" />
+    <Compile Include="..\..\src\HeadingCompass\CompassMarker.cs" Link="CompassMarker.cs" />
+    <Compile Include="..\..\src\HeadingCompass\MarkerSources.cs" Link="MarkerSources.cs" />
   </ItemGroup>
 </Project>

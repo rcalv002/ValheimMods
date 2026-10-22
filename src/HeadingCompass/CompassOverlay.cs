@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 namespace HeadingCompass;
@@ -8,9 +11,10 @@ internal sealed class CompassOverlay
     private GUIStyle? major;
     private GUIStyle? minor;
 
-    internal void Draw(double heading, float horizontal, float top, float width, float scale, float opacity)
+    internal void Draw(double heading, float horizontal, float top, float width, float scale, float opacity,
+        IReadOnlyList<MarkerLayout.Placement>? markers = null)
     {
-        const float height = 70;
+        float height = markers != null && markers.Count > 0 ? 97 + markers.Max(m => m.Lane + 1) * 21 : 70;
         float fit = Mathf.Max(0.01f, Mathf.Min(scale,
             Mathf.Min(Screen.width / (width + 16f), Screen.height / (height + 16f))));
         float screenWidth = Screen.width / fit;
@@ -49,6 +53,27 @@ internal sealed class CompassOverlay
             finally { GUI.EndGroup(); }
             // Fixed center index; the heading scale scrolls beneath it.
             Paint(new Rect(x + width / 2 - 1, y + 28, 2, 13), new Color(0.96f, 0.82f, 0.48f));
+            if (markers != null && markers.Count > 0)
+            {
+                Paint(new Rect(x + 12, y + 68, width - 24, 1), new Color(0.21f, 0.28f, 0.30f));
+                foreach (var marker in markers)
+                {
+                    float mx = x + marker.X, my = y + 72 + marker.Lane * 21;
+                    var icon = marker.Marker.Icon;
+                    GUI.color = marker.Marker.Color;
+                    if (icon) GUI.DrawTextureWithTexCoords(new Rect(mx - 10, my, 20, 20), icon!, marker.Marker.UV);
+                    else GUI.Label(new Rect(mx - 10, my, 20, 20), "·", major!);
+                    GUI.color = Color.white;
+                    if (marker.Edge)
+                        GUI.Label(new Rect(mx + (marker.Delta < 0 ? 12 : -26), my, 14, 20), marker.Delta < 0 ? "<" : ">", major!);
+                }
+                var detail = markers.OrderBy(p => Math.Abs(p.Delta)).ThenByDescending(p => p.Marker.Priority).First();
+                string name = new string(detail.Marker.Name.Where(c => !char.IsControl(c)).Take(30).ToArray());
+                if (name.Length == 0) name = "Map pin";
+                GUI.color = Color.white;
+                GUI.Label(new Rect(x + 8, y + height - 23, width - 16, 20), name + " · " + MarkerLayout.DistanceText(detail.Distance) +
+                    " · " + Heading.Readout(detail.Bearing), minor!);
+            }
         }
         finally
         {
@@ -61,7 +86,7 @@ internal sealed class CompassOverlay
     private static GUIStyle Style(int size, FontStyle weight, Color color)
     {
         var style = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter,
-            fontSize = size, fontStyle = weight, wordWrap = false, richText = false };
+            fontSize = size, fontStyle = weight, wordWrap = false, richText = false, clipping = TextClipping.Clip };
         style.normal.textColor = color;
         return style;
     }

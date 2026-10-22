@@ -105,3 +105,33 @@ dualRpc.DeliverRequest(20, 333, 3, "TargetCall_Leader");
 Check(leader.State.ObjectId == 3 && attack.State.ObjectId == 1, "Replacing leader leaves attack call intact");
 dualRpc.DeliverDead(20, 333, 3, leader.State.Revision, "TargetCall_Leader");
 Check(!leader.State.Active(300) && attack.State.Active(300), "Leader death clears only leader marker");
+
+// The compass observes the existing channels locally without new network traffic.
+var compass = Plugin.StartCompass(attack, leader);
+Player.m_localPlayer = new Player();
+Plugin.Characters[new ZDOID(111, 1)] = new Character { Display = "Boar", transform = { position = new(10, 0, 20) } };
+var observed = new System.Collections.Generic.List<(string Kind, string Name, UnityEngine.Vector3 Position, UnityEngine.Texture2D Icon, UnityEngine.Color Color)>();
+void Collect() { observed.Clear(); Plugin.CollectCompassMarkers((kind, name, pos, icon, color) => observed.Add((kind, name, pos, icon, color))); }
+Collect();
+Check(observed.Count == 1 && observed[0].Kind == "attack" && observed[0].Name == "Boar", "Compass exposes live attack identity and icon");
+var attackTexture = observed[0].Icon;
+attack.State.ToggleFocus(300); Collect();
+Check(ReferenceEquals(attackTexture, observed[0].Icon) && observed[0].Color.g > 0.7, "Taking target reuses attack icon with gold focus tint");
+Plugin.Characters[new ZDOID(111, 1)].Dead = true; Collect();
+Check(observed.Count == 0, "Dead entities disappear from the compass before relay clear");
+Plugin.Characters.Clear(); Collect();
+Check(observed.Count == 0, "Unloaded creature never becomes a guessed compass position");
+UnityEngine.Time.realtimeSinceStartupAsDouble = 301;
+ZNet.instance.PublicPlayers.Add(new ZNet.PlayerInfo { m_name = "Leader", m_characterID = new ZDOID(222, 2),
+    m_publicPosition = true, m_position = new(1000, 0, 2000) });
+leader.Call(222, 2); compass.Personal.Toggle(222, 2); Collect();
+Check(observed.Count == 2 && observed.Any(m => m.Kind == "commander" && m.Position.z == 2000) &&
+    observed.Any(m => m.Kind == "personal"), "Distant shared player supports commander and private markers");
+UnityEngine.Time.realtimeSinceStartupAsDouble = 302;
+attack.Call(222, 2); Collect();
+Check(observed.Any(m => m.Kind == "assist"), "Public player assist remains classified as assistance");
+var remotePlayer = ZNet.instance.PublicPlayers[0]; remotePlayer.m_publicPosition = false;
+ZNet.instance.PublicPlayers[0] = remotePlayer; Collect();
+Check(observed.Count == 0, "Turning off public position removes all unloaded player bearings");
+Player.m_localPlayer = null; Collect();
+Check(observed.Count == 0, "No compass markers are exposed outside a player session");

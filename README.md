@@ -5,6 +5,7 @@ An experimental Valheim combat meter inspired by arcdps. This is an independent 
 This repository also contains [Target Call](src/TargetCall/README.md), a separate plugin for shared moving-creature markers. It installs alongside the meter and does not change its combat recording.
 It also contains [Chat Translator](src/ChatTranslator/README.md), an optional client-side plugin that translates incoming player chat to a configured language through OpenRouter.
 The separate [Heading Compass](src/HeadingCompass/README.md) adds a client-only compass ribbon with cardinal directions and numeric camera headings for coordinating with other players.
+Heading Compass also shows saved map pins and, with Target Call 0.2.3+ on the same client, matching target icons. Favorites such as a `Base` pin stay eligible at long distance and get turn arrows outside the visible arc.
 
 ## What is implemented
 

@@ -4,5 +4,6 @@
     <Compile Include="..\..\src\TargetCall\CallState.cs" Link="CallState.cs" />
     <Compile Include="..\..\src\TargetCall\PersonalMarker.cs" Link="PersonalMarker.cs" />
     <Compile Include="..\..\src\TargetCall\TargetSync.cs" Link="TargetSync.cs" />
+    <Compile Include="..\..\src\TargetCall\CompassMarkers.cs" Link="CompassMarkers.cs" />
   </ItemGroup>
 </Project>
