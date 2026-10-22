@@ -1,12 +1,13 @@
 # Valheim mod deployment guide
 
-This guide installs the current Valhalla Meter, Target Call, and optional Chat Translator builds in a Steam Valheim client and, when group features are wanted, a Docker dedicated server.
+This guide installs Valhalla Meter, Target Call, optional Chat Translator, and optional Heading Compass in a Steam Valheim client and, when group features are wanted, a Docker dedicated server.
 
 The plugins are independent:
 
 - **Valhalla Meter 0.2.14**: client overlay, combat capture, and cooperative DPS relay.
 - **Target Call 0.2.2**: shared attack, assist, commander, and personal markers.
 - **Chat Translator 0.1.2**: client-only incoming-chat translation through OpenRouter.
+- **Heading Compass 0.1.0**: client-only compass showing cardinal directions and numeric camera headings.
 
 Valheim, BepInEx, and the plugins must be compatible with the same game installation. Install the same Target Call version on clients when possible. A Target Call 0.2.0 server is protocol-compatible with 0.2.2 clients.
 
@@ -32,6 +33,7 @@ Extract each release archive into the Valheim game directory:
 ValhallaMeter-0.2.14.zip
 TargetCall-0.2.2.zip
 ChatTranslator-0.1.2.zip       (optional)
+HeadingCompass-0.1.0.zip       (optional)
 ~~~
 
 The resulting files should be:
@@ -41,9 +43,10 @@ Valheim\BepInEx\plugins\ValhallaMeter\ValhallaMeter.dll
 Valheim\BepInEx\plugins\ValhallaMeter\ValhallaMeter.Core.dll
 Valheim\BepInEx\plugins\TargetCall\TargetCall.dll
 Valheim\BepInEx\plugins\ChatTranslator\ChatTranslator.dll
+Valheim\BepInEx\plugins\HeadingCompass\HeadingCompass.dll
 ~~~
 
-Chat Translator is client-only. It does not need to be installed on the dedicated server or on clients that do not want translation.
+Chat Translator and Heading Compass are client-only. Neither needs a server installation. From this source checkout, `scripts/install-headingcompass.ps1` installs the built compass release into a client with BepInEx already installed; `-WhatIf` previews it.
 
 ### 3. First launch and verification
 
@@ -53,9 +56,10 @@ Start Valheim through the same Steam or mod-manager profile used for BepInEx. Ch
 Valhalla Meter 0.2.14 loaded
 Target Call 0.2.2 loaded
 Chat Translator 0.1.2 loaded
+Heading Compass 0.1.0 loaded
 ~~~
 
-The Chat Translator line appears only when that optional plugin is installed. If a plugin is missing from the log, close the game and check the folder layout before configuring it.
+Optional plugin lines appear only when those plugins are installed. If a plugin is missing from the log, close the game and check the folder layout before configuring it.
 
 The plugins create these configuration files after the first load:
 
@@ -63,9 +67,12 @@ The plugins create these configuration files after the first load:
 BepInEx\config\local.valhallameter.cfg
 BepInEx\config\local.targetcall.cfg
 BepInEx\config\local.chattranslator.cfg
+BepInEx\config\local.headingcompass.cfg
 ~~~
 
 Valhalla Meter defaults to **F7** for show/hide and **F8** for interaction and dragging. Target Call defaults to **C** for attack, **Shift+C** for assist, **Alt+C** for a private marker, **Ctrl+C** for commander, and **Z** to take the shared call.
+
+Heading Compass uses **F6** to show/hide. It follows the camera, with north at 000°, east 090°, south 180°, and west 270°. Its default position is below the translation toggle. Size, position, opacity, and key binding are configurable in `local.headingcompass.cfg`.
 
 For Chat Translator, edit `local.chattranslator.cfg`:
 
@@ -82,7 +89,7 @@ The API key is stored in plain text in the local config. Keep it private. The on
 
 ## Dedicated Docker server
 
-Install Valhalla Meter and Target Call on the dedicated server when group DPS and shared markers are required. Do not install Chat Translator on the server.
+Install Valhalla Meter and Target Call on the dedicated server when group DPS and shared markers are required. Chat Translator and Heading Compass belong on clients only.
 
 The server stack used by this project is rooted at:
 
@@ -260,3 +267,4 @@ To roll back, restore the backed-up DLLs to both `config/bepinex/plugins` and `d
 - [Valhalla Meter README](README.md)
 - [Target Call README](src/TargetCall/README.md)
 - [Chat Translator README](src/ChatTranslator/README.md)
+- [Heading Compass README](src/HeadingCompass/README.md)
