@@ -65,7 +65,7 @@ public static class GUI
     public static GUISkin skin = new();
     public static bool ThrowLabel;
     public static bool ThrowTexture;
-    public static readonly List<(Rect Rect, Rect UV)> Icons = new();
+    public static readonly List<(Rect Rect, Rect UV, Color Color)> Icons = new();
     public static readonly List<(Rect Rect, string Text)> Labels = new();
     public static readonly List<Rect> Panels = new();
     public static readonly Stack<Rect> Groups = new();
@@ -79,7 +79,7 @@ public static class GUI
     public static void DrawTextureWithTexCoords(Rect r, Texture2D texture, Rect uv)
     {
         if (ThrowTexture) throw new System.InvalidOperationException("Icon failed");
-        Icons.Add((Map(r), uv));
+        Icons.Add((Map(r), uv, color));
     }
     public static void Label(Rect r, string text, GUIStyle style)
     {

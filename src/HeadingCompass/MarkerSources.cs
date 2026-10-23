@@ -9,7 +9,7 @@ namespace HeadingCompass;
 internal sealed class MarkerSources
 {
     private readonly Action<Action<string, string, Vector3, Texture2D, Color>>? collectTargets;
-    private static readonly FieldInfo? Pins = typeof(Minimap).GetField("m_pins", BindingFlags.Instance | BindingFlags.NonPublic);
+    internal static readonly FieldInfo? Pins = typeof(Minimap).GetField("m_pins", BindingFlags.Instance | BindingFlags.NonPublic);
     private static readonly FieldInfo? Filters = typeof(Minimap).GetField("m_visibleIconTypes", BindingFlags.Instance | BindingFlags.NonPublic);
     private static readonly FieldInfo? Shared = typeof(Minimap).GetField("m_showSharedMapData", BindingFlags.Instance | BindingFlags.NonPublic);
     private readonly List<CompassMarker> pins = new List<CompassMarker>();
@@ -39,7 +39,7 @@ internal sealed class MarkerSources
     internal void Clear() { pins.Clear(); targets.Clear(); lastMap = null; nextPins = 0; }
 
     internal void Collect(List<CompassMarker> output, Vector3 origin, bool showTargets, bool showPins,
-        bool showChecked, string favorites, float maxDistance)
+        bool showChecked, string favorites, float maxDistance, Func<Vector3, bool>? tagged = null)
     {
         output.Clear(); targets.Clear();
         // Public target positions are read afresh every frame. Never cache an unloaded creature.
@@ -56,7 +56,7 @@ internal sealed class MarkerSources
             foreach (var pin in allPins)
             {
                 int type = (int)pin.m_type;
-                bool favorite = PinFilter.Favorite(pin.m_name ?? "", favorites);
+                bool favorite = PinFilter.Favorite(pin.m_name ?? "", favorites) || (tagged?.Invoke(pin.m_pos) ?? false);
                 double dx = (double)pin.m_pos.x - origin.x, dz = (double)pin.m_pos.z - origin.z;
                 if (!PinFilter.Include(pin.m_save, pin.m_checked, showChecked, type >= 0 && type < filters.Length && filters[type],
                     pin.m_ownerID != 0, shared, Math.Sqrt(dx * dx + dz * dz), maxDistance, favorite)) continue;

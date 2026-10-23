@@ -8,11 +8,11 @@ Press **F6** to show/hide while game menus are closed. This does not capture mou
 
 ## Install
 
-Install BepInExPack Valheim, then copy the release's `BepInEx/plugins/HeadingCompass/HeadingCompass.dll` into your Valheim installation or active mod-manager profile. Launch/restart Valheim. Look for `Heading Compass 0.2.0 loaded` in `BepInEx/LogOutput.log`.
+Install BepInExPack Valheim, then copy the release's `BepInEx/plugins/HeadingCompass/HeadingCompass.dll` into your Valheim installation or active mod-manager profile. Launch/restart Valheim. Look for `Heading Compass 0.3.0 loaded` in `BepInEx/LogOutput.log`.
 
 From this source checkout, `scripts/install-headingcompass.ps1` installs the built release with hash verification and backs up an existing DLL. Use `-ValheimPath` for another client or `-WhatIf` to preview. No server deployment is needed.
 
-Configuration is created at `BepInEx/config/local.headingcompass.cfg`. Close the game before editing it. `[Display]` contains `Visible`, `HorizontalPosition` (0–1 screen fraction), `Top` (pixels), `Width`, `Scale`, and `Opacity`. `[Controls]` contains `ToggleKey`. The compass fits within the screen at different resolutions and restores the shared GUI state after drawing.
+Configuration is created at `BepInEx/config/local.headingcompass.cfg`. Close the game before editing it. `[Display]` contains `Visible`, `HorizontalPosition` (0–1 screen fraction), `Top` (pixels), `Width`, `Scale`, and `Opacity`. `[Controls]` contains `ToggleKey` and `TagPinKey`. The compass fits within the screen at different resolutions and restores the shared GUI state after drawing.
 
 The plugin shows your current view direction and bearings to existing targets and pins; it does not create map pins or transmit your position. Another player needs a compass of their own to use the same numeric headings.
 
@@ -31,14 +31,17 @@ ShowTargets = true
 ShowMapPins = true
 ShowCheckedPins = false
 FavoritePins = Base,Home
-MaxPinDistance = 0
+IconRadius = 300
+FarIconOpacity = 0.3
 MaxMarkers = 20
 ```
 
-Favorites match complete pin names ignoring case. Rename a saved pin to `Base` or add its name to `FavoritePins`. `MaxPinDistance` is in meters; zero means unlimited, and favorites bypass this distance limit. Favorites still respect checked, shared, and map icon filters.
+Ordinary map pins appear only within `IconRadius` meters (horizontal distance) and fade linearly from fully opaque at your position to `FarIconOpacity` at the radius edge. `IconRadius = 0` shows all pins at full opacity.
 
-Markers appear below the heading scale at their bearing. Active targets have priority over favorites, which have priority over ordinary map pins. Up to three overlapping markers stack vertically; excess icons are omitted rather than drawn on top of one another. Targets and favorites outside the 150-degree compass arc get left/right turn arrows. Ordinary off-arc pins stay hidden. The closest displayed bearing to the center gets a name, horizontal distance, and bearing readout, such as `Base · 1.8 km · N 000°`. Arrows at the ends indicate a turn direction rather than an exact position on the visible scale.
+To keep a pin on the compass at any distance, open the large map, hover the pin, and press **P** (`[Controls] TagPinKey`). Press it again to untag. Tagged pins are tinted gold on the map and stored per character and world in `BepInEx/config/local.headingcompass.tags.txt`. Favorites by name work the same way: rename a saved pin to `Base` or add its name to `FavoritePins` (complete names, ignoring case). Tagged pins, favorites, and targets ignore the radius and stay fully opaque, but still respect checked, shared, and map icon filters.
+
+Markers appear in a single row below the heading scale at their bearing. Active targets have priority over tagged pins and favorites, which have priority over ordinary map pins; among equals, the nearer one wins. Overlapping lower-priority icons are omitted rather than drawn on top of one another. Targets, tagged pins, and favorites outside the 150-degree compass arc get left/right turn arrows. Ordinary off-arc pins stay hidden. The closest displayed bearing to the center gets a name, horizontal distance, and bearing readout, such as `Base · 1.8 km · N 000°`. Arrows at the ends indicate a turn direction rather than an exact position on the visible scale.
 
 ## Build and checks
 
-Run `scripts/build-headingcompass.ps1` after `scripts/prepare.ps1`. It builds against the installed game, runs heading and rendering checks, verifies release checksums, and creates `dist/HeadingCompass-0.2.0.zip`. The release contains no game or loader DLLs. Automated rendering checks use a headless host; they do not confirm the final appearance in a running Valheim session.
+Run `scripts/build-headingcompass.ps1` after `scripts/prepare.ps1`. It builds against the installed game, runs heading and rendering checks, verifies release checksums, and creates `dist/HeadingCompass-0.3.0.zip`. The release contains no game or loader DLLs. Automated rendering checks use a headless host; they do not confirm the final appearance in a running Valheim session.

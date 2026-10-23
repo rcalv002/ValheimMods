@@ -14,7 +14,7 @@ internal sealed class CompassOverlay
     internal void Draw(double heading, float horizontal, float top, float width, float scale, float opacity,
         IReadOnlyList<MarkerLayout.Placement>? markers = null)
     {
-        float height = markers != null && markers.Count > 0 ? 97 + markers.Max(m => m.Lane + 1) * 21 : 70;
+        float height = markers != null && markers.Count > 0 ? 118 : 70;
         float fit = Mathf.Max(0.01f, Mathf.Min(scale,
             Mathf.Min(Screen.width / (width + 16f), Screen.height / (height + 16f))));
         float screenWidth = Screen.width / fit;
@@ -58,9 +58,10 @@ internal sealed class CompassOverlay
                 Paint(new Rect(x + 12, y + 68, width - 24, 1), new Color(0.21f, 0.28f, 0.30f));
                 foreach (var marker in markers)
                 {
-                    float mx = x + marker.X, my = y + 72 + marker.Lane * 21;
+                    float mx = x + marker.X, my = y + 72;
                     var icon = marker.Marker.Icon;
-                    GUI.color = marker.Marker.Color;
+                    var tint = marker.Marker.Color;
+                    GUI.color = new Color(tint.r, tint.g, tint.b, tint.a * marker.Alpha);
                     if (icon) GUI.DrawTextureWithTexCoords(new Rect(mx - 10, my, 20, 20), icon!, marker.Marker.UV);
                     else GUI.Label(new Rect(mx - 10, my, 20, 20), "·", major!);
                     GUI.color = Color.white;

@@ -1,6 +1,6 @@
 {
   "name": "HeadingCompass",
-  "version_number": "0.2.0",
+  "version_number": "0.3.0",
   "website_url": "",
   "description": "Client-side compass with numeric headings, saved map pins, and optional Target Call icons for Valheim.",
   "dependencies": ["denikson-BepInExPack_Valheim-5.4.2350"]

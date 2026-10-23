@@ -7,7 +7,7 @@ The plugins are independent:
 - **Valhalla Meter 0.2.14**: client overlay, combat capture, and cooperative DPS relay.
 - **Target Call 0.2.3**: shared attack, assist, commander, and personal markers.
 - **Chat Translator 0.1.2**: client-only incoming-chat translation through OpenRouter.
-- **Heading Compass 0.2.0**: client-only compass showing cardinal directions and numeric camera headings.
+- **Heading Compass 0.3.0**: client-only compass showing cardinal directions and numeric camera headings.
 
 Valheim, BepInEx, and the plugins must be compatible with the same game installation. Install the same Target Call version on clients when possible. A Target Call 0.2.0 server is protocol-compatible with 0.2.3 clients.
 
@@ -33,7 +33,7 @@ Extract each release archive into the Valheim game directory:
 ValhallaMeter-0.2.14.zip
 TargetCall-0.2.3.zip
 ChatTranslator-0.1.2.zip       (optional)
-HeadingCompass-0.2.0.zip       (optional)
+HeadingCompass-0.3.0.zip       (optional)
 ~~~
 
 The resulting files should be:
@@ -56,7 +56,7 @@ Start Valheim through the same Steam or mod-manager profile used for BepInEx. Ch
 Valhalla Meter 0.2.14 loaded
 Target Call 0.2.3 loaded
 Chat Translator 0.1.2 loaded
-Heading Compass 0.2.0 loaded
+Heading Compass 0.3.0 loaded
 ~~~
 
 Optional plugin lines appear only when those plugins are installed. If a plugin is missing from the log, close the game and check the folder layout before configuring it.
@@ -74,7 +74,7 @@ Valhalla Meter defaults to **F7** for show/hide and **F8** for interaction and d
 
 Heading Compass uses **F6** to show/hide. It follows the camera, with north at 000°, east 090°, south 180°, and west 270°. Its default position is below the translation toggle. Size, position, opacity, and key binding are configurable in `local.headingcompass.cfg`.
 
-Heading Compass 0.2.0 also shows saved map pins at any distance and targeting icons when Target Call 0.2.3+ is installed on the same client. Name a saved pin `Base` or `Home` for favorite priority and turn arrows, or set `[Markers] FavoritePins` to a comma-separated list of other pin names. Checked-off pins are hidden by default. The compass respects map icon filters, shared-map visibility, and no-map worlds. Creature markers need a loaded creature; distant player markers require public position sharing. See [the compass marker settings](src/HeadingCompass/README.md#target-icons-and-map-pins). No server update is required for this integration when it already runs Target Call 0.2.0+.
+Heading Compass 0.3.0 also shows saved map pins and targeting icons when Target Call 0.2.3+ is installed on the same client. Ordinary pins appear in a single row within `[Markers] IconRadius` (300 m by default) and fade with distance. To keep a pin visible at any distance, hover it on the large map and press **P**; tagged pins turn gold on the map and get turn arrows outside the compass arc. Naming a saved pin `Base` or `Home`, or listing it in `[Markers] FavoritePins`, does the same. Checked-off pins are hidden by default. The compass respects map icon filters, shared-map visibility, and no-map worlds. Creature markers need a loaded creature; distant player markers require public position sharing. See [the compass marker settings](src/HeadingCompass/README.md#target-icons-and-map-pins). No server update is required for this integration when it already runs Target Call 0.2.0+.
 
 For an existing client, build both releases and run `scripts/install-targetcall.ps1` and `scripts/install-headingcompass.ps1`, then restart Valheim. Both installers support `-WhatIf` and back up replaced DLLs while preserving existing configuration.
 

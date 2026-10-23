@@ -67,8 +67,18 @@ var many = MarkerLayout.Build(Enumerable.Range(0, 60).Select(i => Marker("pin" +
 Check(many.Count == 5, "Marker count is bounded even with many map pins");
 var crowded = MarkerLayout.Build(new[] { Marker("pin", 0, 30), Marker("Base", 0, 1500, 2),
     Marker("personal", 0, 20, 3), Marker("commander", 0, 20, 3), Marker("assist", 0, 20, 3) }, Vector3.zero, 0, 440, 20);
-Check(crowded.Count == 3 && crowded.All(p => p.Marker.Priority == 3) && crowded.Select(p => p.Lane).Distinct().Count() == 3,
-    "Three target channels stack ahead of overlapping map pins");
+Check(crowded.Count == 1 && crowded[0].Marker.Priority == 3,
+    "A single icon row keeps only the highest-priority marker among overlapping ones");
+var nearFar = MarkerLayout.Build(new[] { Marker("far", 0, 200), Marker("near", 1, 50) }, Vector3.zero, 0, 440, 20);
+Check(nearFar.Count == 1 && nearFar[0].Marker.Id == "near", "Overlapping ordinary pins keep the nearer one");
+var faded = MarkerLayout.Build(new[] { Marker("edge", -100, 100 * (float)Math.Sqrt(3) * 2), Marker("mid", 100, 100), Marker("Base", 0, 1800, 2) },
+    Vector3.zero, 0, 440, 20, 400, 0.3f);
+Check(Math.Abs(faded.Single(p => p.Marker.Id == "edge").Alpha - (1 - 0.7f * (float)(Math.Sqrt(130000) / 400))) < 0.001 &&
+    Math.Abs(faded.Single(p => p.Marker.Id == "mid").Alpha - (1 - 0.7f * (float)(Math.Sqrt(20000) / 400))) < 0.001 &&
+    faded.Single(p => p.Marker.Id == "Base").Alpha == 1,
+    "Ordinary pins fade toward FarIconOpacity at the radius; favorites stay opaque");
+Check(MarkerLayout.Fade(800, 400, 0.3f) == 0.3f && MarkerLayout.Fade(0, 400, 0.3f) == 1 && MarkerLayout.Fade(5000, 0, 0.3f) == 1,
+    "Fade is clamped and disabled with an unlimited radius");
 Check(MarkerLayout.Build(new[] { Marker("self", 0, 0, 3), Marker("bad", float.NaN, 2) }, Vector3.zero, 0, 440, 20).Count == 0,
     "Self and invalid positions do not produce arbitrary headings");
 Check(!PinFilter.Include(true, true, false, true, false, true, 50, 0, false) &&
@@ -116,6 +126,13 @@ Game.m_noMap = true;
 source.Collect(markers, Vector3.zero, true, true, false, "Base", 0);
 Check(markers.Count == 0, "No-map worlds do not reveal saved pin positions");
 Game.m_noMap = false; source.Clear();
+Minimap.instance.Pins.Clear();
+Minimap.instance.Pins.Add(new Minimap.PinData { m_name = "", m_pos = new Vector3(0, 0, 5000) });
+Minimap.instance.Pins.Add(new Minimap.PinData { m_name = "", m_pos = new Vector3(5000, 0, 0) });
+source.Collect(markers, Vector3.zero, true, true, false, "Base", 300, p => p.z == 5000);
+Check(markers.Count == 1 && markers[0].Priority == 2 && markers[0].Position.z == 5000,
+    "Tagged pins bypass the icon radius with favorite priority; untagged distant pins are hidden");
+source.Clear();
 
 foreach (var size in new[] { (1920, 1080), (1280, 720), (3440, 1440), (320, 180) })
 {
@@ -126,6 +143,10 @@ foreach (var size in new[] { (1920, 1080), (1280, 720), (3440, 1440), (320, 180)
     Check(panel.x >= 0 && panel.y >= 0 && panel.x + panel.width <= Screen.width && panel.y + panel.height <= Screen.height &&
         GUI.Icons.Count == 1 && GUI.Labels.Any(l => l.Text.Contains("Base · 1.8 km")), "Marker lane and destination readout fit " + size);
 }
+GUI.Icons.Clear();
+overlay.Draw(0, 0.5f, 54, 440, 1, 0.8f, faded);
+Check(GUI.Icons.Count == 3 && GUI.Icons.Any(i => Math.Abs(i.Color.a - faded.Single(p => p.Marker.Id == "mid").Alpha) < 0.001) &&
+    GUI.Icons.Count(i => i.Color.a == 1) == 1, "Overlay draws faded icon opacity");
 GUI.ThrowTexture = true;
 try { overlay.Draw(0, 0.5f, 54, 440, 1, 0.8f, northPins); throw new Exception("Expected failure"); }
 catch (InvalidOperationException) { }
